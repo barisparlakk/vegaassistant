@@ -348,6 +348,7 @@ struct ConsoleCheckbox: View {
 /// 14-day activity as a thin accent line.
 struct SparkLine: View {
     let values: [Int]
+    var width: CGFloat = DS.Size.sparkline.width
     @Environment(\.accent) private var accent
 
     var body: some View {
@@ -375,7 +376,7 @@ struct SparkLine: View {
                 }
             }
         }
-        .frame(width: DS.Size.sparkline.width, height: DS.Size.sparkline.height)
+        .frame(width: width, height: DS.Size.sparkline.height)
         .accessibilityElement()
         .accessibilityLabel("\(values.reduce(0, +)) commits in the last 14 days")
     }
