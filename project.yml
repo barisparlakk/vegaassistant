@@ -18,11 +18,12 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     DEAD_CODE_STRIPPING: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
-    # Personal, locally-built app. Set DEVELOPMENT_TEAM to sign with your Apple ID so
-    # macOS keeps Calendar/Reminders permission across rebuilds.
-    CODE_SIGN_IDENTITY: "-"
+    # Signed with your Apple Development certificate so the app keeps one identity across
+    # rebuilds: macOS then remembers Desktop, Calendar, Reminders and Microphone answers.
+    # Without a certificate, set CODE_SIGN_IDENTITY to "-" and DEVELOPMENT_TEAM to "".
+    CODE_SIGN_IDENTITY: "Apple Development"
     CODE_SIGN_STYLE: Manual
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: LF4URQZ467
 
 packages:
   MorningKit:
@@ -43,6 +44,7 @@ targets:
       - package: MarkdownUI
       - target: morning-cli
         embed: true
+        codeSign: true # keep the helper on the same certificate as the app
         copy:
           destination: executables
     info:

@@ -31,10 +31,12 @@ xcodebuild -project Morning.xcodeproj -scheme Morning -configuration Release -de
 ```
 
 ```bash
-ditto .build/xcode/Build/Products/Release/Vega.app /Applications/Vega.app
+ditto --norsrc --noextattr .build/xcode/Build/Products/Release/Vega.app /Applications/Vega.app
 ```
 
-Then open Vega from `/Applications`. The command-line helper lives inside the app at `Vega.app/Contents/MacOS/morning-cli`. To use it from a shell:
+Then open Vega from `/Applications`.
+
+**Signing.** `project.yml` signs with an Apple Development certificate (team `LF4URQZ467`). That gives Vega one identity across rebuilds, so macOS asks for Desktop, Calendar, Reminders and Microphone access once and remembers the answer. An ad-hoc signature (`CODE_SIGN_IDENTITY: "-"`, empty `DEVELOPMENT_TEAM`) also works, but every rebuild then looks like a new app and the prompts come back. `--noextattr` keeps Finder attributes off the copy so the signature verifies. The command-line helper lives inside the app at `Vega.app/Contents/MacOS/morning-cli`. To use it from a shell:
 
 ```bash
 ln -sf /Applications/Vega.app/Contents/MacOS/morning-cli /opt/homebrew/bin/morning-cli
@@ -76,7 +78,7 @@ and regenerate the project.
 
 | Permission | Why | When it's asked |
 |---|---|---|
-| Desktop / Documents folder | Your repositories may live there (Vega scans `~/dev`, `~/Developer`, `~/Projects` and `~/Desktop` by default) | The first time Vega scans those folders |
+| Desktop / Documents folder | Your repositories may live there (Vega scans `~/dev`, `~/Developer`, `~/Projects` and `~/Desktop` by default). `claude`, started by Vega, also reads its config, which lists projects there | Once, the first time Vega or a briefing/answer touches those folders — click **Allow** |
 | Calendar | Today's events for the agenda | First generation, or *Allow access…* on the Today screen / in Settings |
 | Reminders | Reminders due today or overdue | Same as Calendar |
 | Notifications | "Vega: your briefing is ready" | When you install the scheduler, or in Settings |
