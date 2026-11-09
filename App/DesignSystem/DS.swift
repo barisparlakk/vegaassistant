@@ -38,8 +38,8 @@ enum DS {
         static let statusBarHeight: CGFloat = 48
         static let contentMaxWidth: CGFloat = 1100
         static let sidebarWidth: CGFloat = 228
-        static let orb: CGFloat = 150
-        static let brandOrb: CGFloat = 18
+        static let orb: CGFloat = 230
+        static let brandOrb: CGFloat = 20
         static let newsColumn: CGFloat = 360
         static let twoColumnMin: CGFloat = 720
         static let windowMinWidth: CGFloat = 900

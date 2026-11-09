@@ -47,8 +47,7 @@ struct SidebarView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.xl) {
                 HStack(spacing: DS.Space.s + DS.Space.xxs) {
-                    GlassOrb(size: DS.Size.brandOrb)
-                        .padding(.bottom, -DS.Size.brandOrb * 0.12)
+                    AssistantCore(size: DS.Size.brandOrb, isDetailed: false)
                     Text("Morning")
                         .font(DS.Font.brand)
                         .foregroundStyle(DS.Color.heading)

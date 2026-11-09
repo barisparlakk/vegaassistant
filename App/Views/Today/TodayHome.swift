@@ -1,81 +1,6 @@
 import MorningKit
 import SwiftUI
 
-// MARK: - Orb
-
-/// The assistant's presence: a glass sphere with a warm core that breathes slowly.
-struct GlassOrb: View {
-    var size: CGFloat = DS.Size.orb
-    /// Faster breathing while a briefing is being prepared.
-    var isWorking = false
-    @Environment(\.accent) private var accent
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breathe = false
-
-    var body: some View {
-        let dark = scheme == .dark
-        ZStack {
-            // Floor glow
-            Ellipse()
-                .fill(RadialGradient(colors: [accent.opacity(dark ? 0.30 : 0.32), .clear], center: .center, startRadius: 0, endRadius: size * 0.4))
-                .frame(width: size * 0.78, height: size * 0.24)
-                .offset(y: size * 0.52)
-
-            // Glass body
-            Circle()
-                .fill(RadialGradient(
-                    colors: dark
-                        ? [.white.opacity(0.20), .white.opacity(0.05), .white.opacity(0.02), .white.opacity(0.10)]
-                        : [.white.opacity(0.95), Color(hex: 0xEBEEF5).opacity(0.6), Color(hex: 0xC8CDD7).opacity(0.4), .white.opacity(0.85)],
-                    center: UnitPoint(x: 0.35, y: 0.3),
-                    startRadius: 0,
-                    endRadius: size * 0.62
-                ))
-                .overlay {
-                    // Shade on the lower right, light on the upper left.
-                    Circle().fill(RadialGradient(
-                        colors: [.clear, (dark ? Color.black : Color(hex: 0x78829A)).opacity(dark ? 0.5 : 0.28)],
-                        center: UnitPoint(x: 0.35, y: 0.3),
-                        startRadius: size * 0.25,
-                        endRadius: size * 0.7
-                    ))
-                }
-                .overlay { Circle().strokeBorder((dark ? Color.white : Color.black).opacity(dark ? 0.18 : 0.06), lineWidth: 1) }
-                .shadow(color: .black.opacity(dark ? 0.55 : 0.18), radius: size * 0.17, y: size * 0.12)
-
-            // Warm core
-            Circle()
-                .fill(RadialGradient(colors: [Color(hex: 0xFFF2D6), accent, accent.opacity(0)], center: UnitPoint(x: 0.42, y: 0.38), startRadius: 0, endRadius: size * 0.24))
-                .frame(width: size * 0.44, height: size * 0.44)
-                .blur(radius: size * 0.018)
-                .scaleEffect(breathe ? 1.06 : 0.94)
-                .opacity(breathe ? 1 : 0.85)
-
-            // Specular highlight
-            Ellipse()
-                .fill(.white.opacity(dark ? 0.75 : 1))
-                .frame(width: size * 0.28, height: size * 0.13)
-                .blur(radius: size * 0.03)
-                .rotationEffect(.degrees(-24))
-                .offset(x: -size * 0.17, y: -size * 0.3)
-        }
-        .frame(width: size, height: size)
-        .padding(.bottom, size * 0.12)
-        .onAppear { startBreathing() }
-        .onChange(of: isWorking) { startBreathing() }
-        .accessibilityHidden(true)
-    }
-
-    private func startBreathing() {
-        guard !reduceMotion else { return }
-        breathe = false
-        withAnimation(.easeInOut(duration: isWorking ? 0.9 : 3.2).repeatForever(autoreverses: true)) {
-            breathe = true
-        }
-    }
-}
-
 // MARK: - Hero
 
 /// Orb, greeting, the day's headline and three numbers, on a softly lit stage.
@@ -85,10 +10,12 @@ struct TodayHero<Stats: View>: View {
     var isWorking = false
     @ViewBuilder var stats: Stats
     @Environment(\.accent) private var accent
+    @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(alignment: .center, spacing: DS.Space.xxl + DS.Space.s) {
-            GlassOrb(isWorking: isWorking)
+        HStack(alignment: .center, spacing: DS.Space.xxl) {
+            AssistantCore(mood: isWorking || model.isGenerating ? .working : (model.focusBlock != nil ? .focus : .idle))
+                .padding(.vertical, -DS.Space.l)
             VStack(alignment: .leading, spacing: DS.Space.s + DS.Space.xxs) {
                 Text(overline)
                     .font(DS.Font.greeting)
