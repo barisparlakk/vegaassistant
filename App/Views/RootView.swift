@@ -22,8 +22,7 @@ struct RootView: View {
             // The status bar takes the title bar's place.
             .ignoresSafeArea(.container, edges: .top)
         }
-        // No window toolbar: the status bar is the top edge; traffic lights sit over the sidebar.
-        .toolbar(.hidden, for: .windowToolbar)
+        // The status bar is the top edge; the window buttons sit over the left panel.
     }
 
     @ViewBuilder private var content: some View {
