@@ -52,6 +52,8 @@ targets:
         CFBundleName: Morning
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "15.0"
+        # IBM Plex Mono + Sans (OFL), bundled in App/Resources/Fonts and copied to Resources/.
+        ATSApplicationFontsPath: "."
         NSHumanReadableCopyright: ""
         NSCalendarsFullAccessUsageDescription: Morning reads today's events to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
         NSRemindersFullAccessUsageDescription: Morning reads reminders due today to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
