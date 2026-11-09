@@ -94,23 +94,34 @@ final class VegaVoice: NSObject {
 
     static let voiceKey = "vega.voiceID"
 
-    /// English voices on this Mac, best quality first.
+    /// Modern English voices on this Mac (no novelty or legacy voices): female first, then by
+    /// quality, then US/UK English.
     static var availableVoices: [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.hasPrefix("en") && !$0.voiceTraits.contains(.isNoveltyVoice) }
+            .filter { $0.language.hasPrefix("en") && $0.identifier.hasPrefix("com.apple.voice.") && !$0.voiceTraits.contains(.isNoveltyVoice) }
             .sorted { lhs, rhs in
+                if (lhs.gender == .female) != (rhs.gender == .female) { return lhs.gender == .female }
                 if lhs.quality != rhs.quality { return lhs.quality.rawValue > rhs.quality.rawValue }
+                if regionRank(lhs) != regionRank(rhs) { return regionRank(lhs) < regionRank(rhs) }
                 return lhs.name < rhs.name
             }
     }
 
-    /// The chosen voice, or the best English voice installed.
+    /// The chosen voice, or Vega's default: the best female English voice installed
+    /// (Samantha unless a premium or enhanced voice has been added).
     static var selectedVoice: AVSpeechSynthesisVoice? {
-        if let id = UserDefaults.standard.string(forKey: voiceKey), let voice = AVSpeechSynthesisVoice(identifier: id) {
+        if let id = UserDefaults.standard.string(forKey: voiceKey), !id.isEmpty, let voice = AVSpeechSynthesisVoice(identifier: id) {
             return voice
         }
-        return availableVoices.first { $0.language == Locale.current.identifier.replacingOccurrences(of: "_", with: "-") }
-            ?? availableVoices.first
+        return availableVoices.first ?? AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private static func regionRank(_ voice: AVSpeechSynthesisVoice) -> Int {
+        switch voice.language {
+        case "en-US": 0
+        case "en-GB": 1
+        default: 2
+        }
     }
 
     // MARK: Delegate (called by AVFoundation; hop to the main actor)

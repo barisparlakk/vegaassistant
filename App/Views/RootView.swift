@@ -37,44 +37,133 @@ struct RootView: View {
     }
 }
 
-// MARK: - Sidebar
+// MARK: - Vega panel
 
-/// The system sidebar material with the orb, the views and active projects.
+/// The left panel: Vega herself (the star, what she's doing, her voice controls), then navigation.
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accent) private var accent
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DS.Space.xl) {
-                HStack(spacing: DS.Space.s + DS.Space.xxs) {
-                    VegaMarkShape()
-                        .fill(LinearGradient(colors: [.white, accent], startPoint: .top, endPoint: .bottom))
-                        .frame(width: DS.Size.brandOrb, height: DS.Size.brandOrb)
-                    Text("Vega")
-                        .font(DS.Font.brand)
-                        .foregroundStyle(DS.Color.heading)
-                }
-                .padding(.horizontal, DS.Space.s)
-                VStack(alignment: .leading, spacing: DS.Space.xxs) {
-                    ForEach(SidebarItem.allCases) { item in
-                        SidebarRow(item: item, isSelected: model.selection == item) {
-                            model.selection = item
-                        }
+        VStack(spacing: 0) {
+            HStack(spacing: DS.Space.s + DS.Space.xxs) {
+                VegaMarkShape()
+                    .fill(LinearGradient(colors: [.white, accent], startPoint: .top, endPoint: .bottom))
+                    .frame(width: DS.Size.brandOrb, height: DS.Size.brandOrb)
+                Text("Vega")
+                    .font(DS.Font.brand)
+                    .foregroundStyle(DS.Color.heading)
+                Spacer()
+            }
+            .padding(.horizontal, DS.Space.l)
+            .padding(.top, DS.Space.s)
+
+            Spacer(minLength: DS.Space.l)
+
+            VegaPresence()
+
+            Spacer(minLength: DS.Space.l)
+
+            VStack(alignment: .leading, spacing: DS.Space.xxs) {
+                ForEach(SidebarItem.allCases) { item in
+                    SidebarRow(item: item, isSelected: model.selection == item) {
+                        model.selection = item
                     }
                 }
-
-                SidebarProjects()
             }
             .padding(.horizontal, DS.Space.s)
-            .padding(.top, DS.Space.s)
-            .padding(.bottom, DS.Space.xl)
+            .padding(.bottom, DS.Space.l)
         }
-        .scrollIndicators(.never)
         .toolbar(removing: .sidebarToggle)
     }
 }
 
+/// The star, a one-line status, a waveform while speaking, and pause / replay / mute.
+struct VegaPresence: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.accent) private var accent
+
+    var body: some View {
+        let voice = model.voice
+        VStack(spacing: DS.Space.m) {
+            AssistantCore(mood: mood, size: DS.Size.orb, pulse: voice.wordTick)
+
+            Text(status)
+                .font(DS.Font.button)
+                .foregroundStyle(DS.Color.accentInk(accent))
+                .contentTransition(.opacity)
+                .animation(DS.Motion.standard, value: status)
+
+            VoiceWaveform(isActive: voice.isSpeaking, tick: voice.wordTick)
+                .frame(height: DS.Size.waveform)
+                .opacity(voice.isSpeaking ? 1 : 0.25)
+
+            if case let .loaded(briefing) = model.today {
+                HStack(spacing: DS.Space.s) {
+                    if voice.status != .idle {
+                        Button(voice.status == .speaking ? "Pause" : "Resume") { voice.togglePause() }
+                    }
+                    Button(voice.status == .idle ? "Play briefing" : "Replay") { model.speakAgain(briefing) }
+                    Button(model.isMuted ? "Unmute" : "Mute") { model.isMuted.toggle() }
+                }
+                .buttonStyle(.vegaPill)
+                .padding(.top, DS.Space.xs)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var mood: AssistantCore.Mood {
+        if model.isGenerating { return .working }
+        if model.voice.isSpeaking { return .speaking }
+        if model.focusBlock != nil { return .focus }
+        return .idle
+    }
+
+    private var status: String {
+        if model.isGenerating { return "Preparing your briefing" }
+        switch model.voice.status {
+        case .speaking: return "Speaking"
+        case .paused: return "Paused"
+        case .idle: break
+        }
+        if let block = model.focusBlock { return "Focus · \(block.title)" }
+        if model.isMuted { return "Muted" }
+        return "Here when you need me"
+    }
+}
+
+/// Bars that dance while Vega speaks and settle when she stops.
+struct VoiceWaveform: View {
+    let isActive: Bool
+    let tick: Int
+    private let bars = 13
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !isActive)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<bars, id: \.self) { index in
+                    let phase = Double(index) * 0.7 + Double(tick % 7) * 0.4
+                    let level = isActive ? 0.25 + 0.75 * abs(sin(time * (5 + Double(index % 4)) + phase)) * envelope(index) : 0.12
+                    Capsule()
+                        .fill(.tint)
+                        .frame(width: 3, height: max(3, DS.Size.waveform * level))
+                }
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// Taller in the middle.
+    private func envelope(_ index: Int) -> Double {
+        let center = Double(bars - 1) / 2
+        return 1 - abs(Double(index) - center) / (center + 2)
+    }
+}
+
+/// A navigation row: icon, title, shortcut.
 struct SidebarRow: View {
     let item: SidebarItem
     let isSelected: Bool
@@ -113,56 +202,7 @@ struct SidebarRow: View {
     }
 }
 
-/// Repo slugs with their state: a deadline (accent), active (ok) or idle (dim).
-struct SidebarProjects: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.accent) private var accent
-
-    var body: some View {
-        let projects = model.currentBriefing?.facts.activeProjects ?? []
-        VStack(alignment: .leading, spacing: DS.Space.xxs) {
-            SectionLabel("Projects")
-                .padding(.horizontal, DS.Space.s)
-                .padding(.bottom, DS.Space.xs)
-            if projects.isEmpty {
-                Text("None yet")
-                    .font(DS.Font.metaSmall)
-                    .foregroundStyle(DS.Color.dim)
-                    .padding(.horizontal, DS.Space.s)
-            }
-            ForEach(projects) { project in
-                Button {
-                    model.selection = .projects
-                    model.selectedProjectID = project.id
-                } label: {
-                    HStack(spacing: DS.Space.s) {
-                        Text(project.name)
-                            .font(DS.Font.small)
-                            .foregroundStyle(DS.Color.text)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer(minLength: DS.Space.xs)
-                        state(for: project)
-                    }
-                    .padding(.horizontal, DS.Space.s)
-                    .padding(.vertical, DS.Space.xs)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func state(for project: ProjectFact) -> some View {
-        let state = ProjectState(project: project, daysToDeadline: model.daysUntilDeadline(project.id))
-        Text(state.label)
-            .font(DS.Font.tag)
-            .foregroundStyle(state.color(accent: accent))
-    }
-}
-
-/// A project's one-word state, shared by the sidebar and the Projects table.
+/// A project's one-word state, shown in the Projects table.
 struct ProjectState {
     enum Kind { case deadline(Int), active, idle }
     let kind: Kind

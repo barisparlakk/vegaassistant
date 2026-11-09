@@ -37,8 +37,10 @@ enum DS {
         static let hairline: CGFloat = 1
         static let statusBarHeight: CGFloat = 48
         static let contentMaxWidth: CGFloat = 1100
-        static let sidebarWidth: CGFloat = 228
-        static let orb: CGFloat = 230
+        static let sidebarWidth: CGFloat = 292
+        static let orb: CGFloat = 250
+        static let waveform: CGFloat = 26
+        static let conversationWidth: CGFloat = 820
         static let brandOrb: CGFloat = 20
         static let newsColumn: CGFloat = 360
         static let twoColumnMin: CGFloat = 720
@@ -172,6 +174,10 @@ enum DS {
         static let heroTitle = SwiftUI.Font.system(size: 38, weight: .semibold)
         static let heroStat = SwiftUI.Font.system(size: 30, weight: .light).monospacedDigit()
         static let cardTitle = sans(13, .semibold)
+
+        // Vega speaking
+        static let vegaOpening = SwiftUI.Font.system(size: 26, weight: .medium)
+        static let vegaLine = SwiftUI.Font.system(size: 19, weight: .regular)
 
         static let priorityTitle = sans(30, .semibold)
         static let menuTitle = sans(17, .semibold)

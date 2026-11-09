@@ -356,10 +356,15 @@ final class AppModel {
     }
 
     /// Speaks today's briefing the first time it's opened (once per briefing), or shows it.
+    /// Later calls for the same briefing (news arriving, a regenerate) refresh the lines
+    /// without interrupting her.
     func presentToday(_ briefing: Briefing) {
         let lines = script(for: briefing, isToday: true)
-        // Already showing (or saying) exactly this.
-        guard voice.lines != lines else { return }
+        if presentedBriefingID == briefing.id {
+            if voice.status == .idle, voice.lines != lines { voice.speak(lines, silently: true) }
+            return
+        }
+        presentedBriefingID = briefing.id
         let alreadySpoken = UserDefaults.standard.string(forKey: Self.spokenKey) == briefing.id
         if !alreadySpoken, speaksOnOpen, !isMuted {
             UserDefaults.standard.set(briefing.id, forKey: Self.spokenKey)
@@ -369,6 +374,8 @@ final class AppModel {
             voice.speak(lines, silently: true)
         }
     }
+
+    @ObservationIgnored private var presentedBriefingID: String?
 
     /// Plays today's briefing from the top (the Replay button).
     func speakAgain(_ briefing: Briefing) {

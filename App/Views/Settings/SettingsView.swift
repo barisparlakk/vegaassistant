@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import MorningKit
 import ServiceManagement
@@ -11,6 +12,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
                 Panel("general") { GeneralSettings() }
+                Panel("voice") { VoiceSettings() }
                 Panel("sources") { SourcesSettings() }
                 Panel("claude") { ClaudeSettings() }
                 Panel("news") { NewsSettingsSection() }
@@ -266,6 +268,59 @@ private func switchToggle(_ label: String, isOn: Binding<Bool>) -> some View {
         .controlSize(.small)
 }
 
+// MARK: - Voice
+
+private struct VoiceSettings: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(VegaVoice.voiceKey) private var voiceID = ""
+    @AppStorage(VegaSounds.enabledKey) private var soundsEnabled = true
+
+    var body: some View {
+        @Bindable var model = model
+        VStack(spacing: 0) {
+            SettingRow("speak the briefing", detail: "Vega reads today's briefing aloud the first time you open it.") {
+                switchToggle("Speak the briefing", isOn: $model.speaksOnOpen)
+            }
+            RowDivider()
+            SettingRow("voice", detail: "On-device voices. For a more natural one, add a premium voice such as Ava or Zoe in System Settings › Accessibility › Spoken Content › System Voice › Manage Voices.") {
+                HStack(spacing: DS.Space.s) {
+                    Picker("Voice", selection: $voiceID) {
+                        Text("Vega (best female voice)").tag("")
+                        ForEach(VegaVoice.availableVoices, id: \.identifier) { voice in
+                            Text(label(for: voice)).tag(voice.identifier)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: DS.Size.pathFieldWidth)
+                    Button("Preview") {
+                        model.voice.speak([VegaLine(id: "preview", text: "Hi, I'm Vega. I'll keep track of your day.")])
+                    }
+                    .buttonStyle(.consoleOutline)
+                }
+            }
+            RowDivider()
+            SettingRow("sounds", detail: "Soft chimes when the briefing is ready, a focus block starts or ends, and a task is done.") {
+                HStack(spacing: DS.Space.s) {
+                    switchToggle("Sounds", isOn: $soundsEnabled)
+                    Button("Play") { model.sounds.play(.ready) }
+                        .buttonStyle(.consoleOutline)
+                        .disabled(!soundsEnabled)
+                }
+            }
+        }
+    }
+
+    private func label(for voice: AVSpeechSynthesisVoice) -> String {
+        let gender = voice.gender == .female ? "female" : (voice.gender == .male ? "male" : "")
+        let quality = switch voice.quality {
+        case .premium: " · premium"
+        case .enhanced: " · enhanced"
+        default: ""
+        }
+        return "\(voice.name) (\(voice.language)\(gender.isEmpty ? "" : ", \(gender)"))\(quality)"
+    }
+}
+
 // MARK: - Claude
 
 private struct ClaudeSettings: View {
@@ -358,7 +413,7 @@ private struct AutomationSettings: View {
                 InstallControl(isInstalled: model.system.hookInstalled, toggle: model.setHookInstalled)
             }
             RowDivider()
-            SettingRow("notifications", detail: "\"Your morning briefing is ready\" — click to open today.") {
+            SettingRow("notifications", detail: "\"Vega: your briefing is ready\" — click to open today.") {
                 switch model.system.notificationsAllowed {
                 case true?: StatusTag(kind: .custom("ON", DS.Color.ok))
                 case false?: Button("turn on in system settings", action: model.requestNotifications).buttonStyle(.consoleOutline)

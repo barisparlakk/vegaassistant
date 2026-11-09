@@ -1,18 +1,18 @@
 import MorningKit
 import SwiftUI
 
-/// Today: the hero, then focus, overnight, news and decisions.
+/// Today: Vega talks you through the briefing (`ConversationView`).
 struct TodayView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         Group {
             if model.isGenerating {
-                TodaySkeleton()
+                ConversationWaiting()
             } else {
                 switch model.today {
                 case .loading:
-                    TodaySkeleton()
+                    ConversationWaiting()
                 case .empty:
                     VStack(alignment: .leading, spacing: 0) {
                         if let error = model.lastError {
@@ -25,7 +25,7 @@ struct TodayView: View {
                     .padding(.horizontal, DS.Space.pageSide - DS.Space.rowHorizontal)
                     .padding(.top, DS.Space.pageTop)
                 case let .loaded(briefing):
-                    BriefingConsole(briefing: briefing, isToday: true)
+                    ConversationView(briefing: briefing)
                 }
             }
         }

@@ -10,12 +10,9 @@ struct TodayHero<Stats: View>: View {
     var isWorking = false
     @ViewBuilder var stats: Stats
     @Environment(\.accent) private var accent
-    @Environment(AppModel.self) private var model
 
     var body: some View {
         HStack(alignment: .center, spacing: DS.Space.xxl) {
-            AssistantCore(mood: isWorking || model.isGenerating ? .working : (model.focusBlock != nil ? .focus : .idle))
-                .padding(.vertical, -DS.Space.l)
             VStack(alignment: .leading, spacing: DS.Space.s + DS.Space.xxs) {
                 Text(overline)
                     .font(DS.Font.greeting)

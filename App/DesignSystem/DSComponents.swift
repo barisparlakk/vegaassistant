@@ -265,6 +265,24 @@ extension ButtonStyle where Self == ConsoleButtonStyle {
     static var consoleGhost: ConsoleButtonStyle { ConsoleButtonStyle(kind: .ghost) }
 }
 
+/// A small rounded pill (Vega's voice controls, quick replies).
+struct VegaPillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(DS.Font.button)
+            .foregroundStyle(DS.Color.text)
+            .padding(.horizontal, DS.Space.m + DS.Space.xxs)
+            .padding(.vertical, DS.Space.xs + DS.Space.xxs)
+            .background(Capsule().fill(configuration.isPressed ? DS.Color.selectedStrong : DS.Color.selected))
+            .overlay(Capsule().strokeBorder(DS.Color.border, lineWidth: DS.Size.hairline))
+            .contentShape(Capsule())
+    }
+}
+
+extension ButtonStyle where Self == VegaPillButtonStyle {
+    static var vegaPill: VegaPillButtonStyle { VegaPillButtonStyle() }
+}
+
 /// "Label ⌘R" — a button label with its shortcut hint.
 struct ShortcutLabel: View {
     let title: String

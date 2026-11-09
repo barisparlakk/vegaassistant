@@ -1,12 +1,12 @@
-# Morning
+# Vega
 
-A personal daily briefing for macOS. Every morning Morning reads what happened since yesterday — Claude Code sessions, git commits, open pull requests — plus today's calendar and reminders, and asks Claude which project deserves your attention and what to do next.
+A personal daily briefing for macOS. Every morning Vega reads what happened since yesterday — Claude Code sessions, git commits, open pull requests — plus today's calendar and reminders, and asks Claude which project deserves your attention and what to do next.
 
 It runs Claude Code in headless mode (`claude -p`) on your **Claude subscription**. It never uses an API key and sends nothing anywhere except the briefing prompt to Claude.
 
-The interface is calm and keyboard-first. It follows the system light or dark mode and uses the system font. Today opens with a glass orb, a greeting and the day's headline, then the focus card, overnight work, news and the decisions waiting on you.
+Vega is a personal assistant, not a dashboard. Her presence is a 3D crystal star on the left (ray-traced live on the GPU) that sways when idle, flares as she speaks and quickens while she prepares the briefing. She speaks the briefing aloud with a female on-device voice, captions it as she goes, and plays soft chimes when the briefing is ready or a focus block starts and ends. Speech and sounds never leave your Mac. The app follows the system light or dark mode and uses the system font.
 
-- **Today** — the day's priority (headline, project, estimate, why) with up to three checkable tasks and a focus-block timer; `overnight.log` with what happened per project and a `DONE` / `NEEDS_YOU` / `FAILED` status; the agenda with a now-line; `attention` items with Terminal / editor / GitHub buttons; and the top news.
+- **Today** — Vega talks you through the day: a greeting, the focus (with up to three checkable tasks and a focus-block timer), what happened overnight, the decisions waiting on you (with Terminal / editor / GitHub buttons), your calendar and one story worth reading. Each line arrives with its card while she says it; once you've heard it, everything is shown at once. Pause, replay or mute from the panel.
 - **History** — every past briefing by date, in the same layout.
 - **Projects** — a table of every repository: branch, last touched, 14-day activity line, and state (active, idle, or a deadline like `T-18d`).
 - **News** — recent stories per category, found with Claude Code's web search, with a line when a story relates to one of your projects.
@@ -31,13 +31,13 @@ xcodebuild -project Morning.xcodeproj -scheme Morning -configuration Release -de
 ```
 
 ```bash
-ditto .build/xcode/Build/Products/Release/Morning.app /Applications/Morning.app
+ditto .build/xcode/Build/Products/Release/Vega.app /Applications/Vega.app
 ```
 
-Then open Morning from `/Applications`. The command-line helper lives inside the app at `Morning.app/Contents/MacOS/morning-cli`. To use it from a shell:
+Then open Vega from `/Applications`. The command-line helper lives inside the app at `Vega.app/Contents/MacOS/morning-cli`. To use it from a shell:
 
 ```bash
-ln -sf /Applications/Morning.app/Contents/MacOS/morning-cli /opt/homebrew/bin/morning-cli
+ln -sf /Applications/Vega.app/Contents/MacOS/morning-cli /opt/homebrew/bin/morning-cli
 ```
 
 `Morning.xcodeproj` is generated from `project.yml`; edit `project.yml`, not the project, and run `xcodegen generate` again.
@@ -56,7 +56,7 @@ and regenerate the project.
 
 ## First run
 
-1. **Sign in Claude Code.** Morning uses the standalone `claude` CLI, which keeps its own login (separate from the Claude desktop app):
+1. **Sign in Claude Code.** Vega uses the standalone `claude` CLI, which keeps its own login (separate from the Claude desktop app):
 
    ```bash
    claude auth login
@@ -76,7 +76,7 @@ and regenerate the project.
 
 | Permission | Why | When it's asked |
 |---|---|---|
-| Desktop / Documents folder | Your repositories may live there (Morning scans `~/dev`, `~/Developer`, `~/Projects` and `~/Desktop` by default) | The first time Morning scans those folders |
+| Desktop / Documents folder | Your repositories may live there (Vega scans `~/dev`, `~/Developer`, `~/Projects` and `~/Desktop` by default) | The first time Vega scans those folders |
 | Calendar | Today's events for the agenda | First generation, or *Allow access…* on the Today screen / in Settings |
 | Reminders | Reminders due today or overdue | Same as Calendar |
 | Notifications | "Your morning briefing is ready" | When you install the scheduler, or in Settings |
@@ -94,13 +94,13 @@ morning-cli schedule install --time 07:00
 This writes `~/Library/LaunchAgents/com.barisparlak.Morning.scheduler.plist` and loads it with `launchctl`. Every day at the chosen time launchd runs:
 
 ```
-Morning.app/Contents/MacOS/morning-cli generate --trigger scheduled --if-needed
+Vega.app/Contents/MacOS/morning-cli generate --trigger scheduled --if-needed
 ```
 
 - **Sleep:** if the Mac was asleep at the scheduled time, launchd runs the job as soon as it wakes.
-- **Shutdown:** if the Mac was off, Morning generates the briefing the next time the app launches.
+- **Shutdown:** if the Mac was off, Vega generates the briefing the next time the app launches.
 - **`--if-needed`** makes a run do nothing when today's briefing already exists.
-- **Calendar permission:** a helper started by launchd can't show the macOS permission prompt. When it doesn't have Calendar/Reminders access, it hands the run to Morning.app (via a `morning://generate` link that launches the app hidden), which has the permissions.
+- **Calendar permission:** a helper started by launchd can't show the macOS permission prompt. When it doesn't have Calendar/Reminders access, it hands the run to Vega.app (via a `morning://generate` link that launches the app hidden), which has the permissions.
 - When the run finishes, the app posts the notification. Clicking it opens Today.
 - Changing the time in Settings reinstalls the agent. Moving the app re-points it automatically on the next launch.
 
@@ -118,7 +118,7 @@ The log is at `~/Library/Logs/Morning/scheduler.log`.
 
 ## Claude Code Stop hook
 
-The hook appends one line to `~/.morning/log.jsonl` whenever a Claude Code session stops, so the briefing knows exactly when you finished working on something. It's a small POSIX shell script with no dependencies (`~/.morning/hooks/morning-stop-hook.sh`); it always exits 0, so it can never block or fail a session, and it ignores Morning's own headless runs.
+The hook appends one line to `~/.morning/log.jsonl` whenever a Claude Code session stops, so the briefing knows exactly when you finished working on something. It's a small POSIX shell script with no dependencies (`~/.morning/hooks/morning-stop-hook.sh`); it always exits 0, so it can never block or fail a session, and it ignores Vega's own headless runs.
 
 Install from Settings › Automation, or:
 
@@ -126,7 +126,7 @@ Install from Settings › Automation, or:
 morning-cli hook install
 ```
 
-Installing **backs up** `~/.claude/settings.json` to `settings.json.morning-backup-<timestamp>`, then adds Morning's entry to `hooks.Stop` and leaves everything else as it was — including any Stop hooks you already have. If the file isn't valid JSON, Morning refuses to touch it. `morning-cli hook uninstall` removes only Morning's entry (again with a backup).
+Installing **backs up** `~/.claude/settings.json` to `settings.json.morning-backup-<timestamp>`, then adds Vega's entry to `hooks.Stop` and leaves everything else as it was — including any Stop hooks you already have. If the file isn't valid JSON, Vega refuses to touch it. `morning-cli hook uninstall` removes only Vega's entry (again with a backup).
 
 To add it by hand instead, print the snippet and merge it into `~/.claude/settings.json`:
 
@@ -151,7 +151,7 @@ The entry only works if the script exists at that path. `morning-cli hook instal
 | Where | Keys |
 |---|---|
 | Everywhere | `⌘1` today · `⌘2` history · `⌘3` projects · `⌘4` news · `⌘,` settings · `⌘R` regenerate |
-| Today | `j`/`k` or arrows move · `space` check a task · `↵` start a focus block / expand a row / open · `⌫` skip a task · `t` `e` `g` open the selected item in Terminal, editor or GitHub · `s` save a story |
+| Today | `space` pause / resume / play the briefing · `r` replay · `esc` stop and show everything · `↵` start a focus block on the next task |
 | Projects | `j`/`k` move · `↵` details · `/` filter · `t` `e` `g` open · `esc` close details |
 | History | `j`/`k` move between days |
 | News | `j`/`k` move · `↵` open (marks read) · `s` save · `←`/`→` or `1`–`9` categories · `r` refresh |
@@ -160,7 +160,7 @@ Focus blocks and skipped tasks are kept in the app only; checked tasks are store
 
 ## News
 
-Alongside each briefing, Morning runs a second headless call that may use one tool, Claude Code's **WebSearch** (pre-approved with `--allowedTools`; nothing else is available to it). It looks for recent stories in your categories and returns JSON that Morning validates: only `https` links, no duplicates, at most N per category, and a `relevance` line only when it names one of your real projects. The feed is saved next to the briefing as `briefings/YYYY-MM-DD.news.json`. A news failure never blocks the briefing; it shows as a source line.
+Alongside each briefing, Vega runs a second headless call that may use one tool, Claude Code's **WebSearch** (pre-approved with `--allowedTools`; nothing else is available to it). It looks for recent stories in your categories and returns JSON that Vega validates: only `https` links, no duplicates, at most N per category, and a `relevance` line only when it names one of your real projects. The feed is saved next to the briefing as `briefings/YYYY-MM-DD.news.json`. A news failure never blocks the briefing; it shows as a source line.
 
 Configure it in Settings › News: on/off, items per category, and the categories themselves (a label plus, in plain words, what to look for). Defaults: ai+tech, research (arXiv cs.AI/cs.LG), türkiye, science. Refresh any time with `r` in the News view or:
 
@@ -192,7 +192,7 @@ The "since" window starts where the previous briefing ended (or 24 hours ago, ne
 
 ### Your subscription, never an API key
 
-Before running `claude`, Morning removes every `ANTHROPIC_*` variable (including `ANTHROPIC_API_KEY`) and every `CLAUDE*` variable a parent Claude Code session may have set (except `CLAUDE_CONFIG_DIR`), and sets `MORNING_GENERATING=1`. The prompt is sent on stdin from a private working folder (`~/Library/Application Support/Morning/run`). Each briefing is one `claude -p` call (two if the first answer doesn't validate).
+Before running `claude`, Vega removes every `ANTHROPIC_*` variable (including `ANTHROPIC_API_KEY`) and every `CLAUDE*` variable a parent Claude Code session may have set (except `CLAUDE_CONFIG_DIR`), and sets `MORNING_GENERATING=1`. The prompt is sent on stdin from a private working folder (`~/Library/Application Support/Morning/run`). Each briefing is one `claude -p` call (two if the first answer doesn't validate).
 
 ## Command-line helper
 
@@ -219,7 +219,9 @@ Settings live in `~/Library/Application Support/Morning/settings.json`, shared b
 - Claude model (`sonnet`, `opus`, `haiku`, …) and a custom path to `claude`
 - extra instructions appended to every briefing prompt (tone, language, priorities)
 
-Morning finds `claude` even when launched from Finder or launchd, where `PATH` is minimal: it checks `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, npm/Volta/Bun/pnpm and nvm locations, then your login shell. Set a custom path in Settings › Claude if yours is elsewhere.
+Settings › Voice (kept in the app's preferences): whether Vega speaks the briefing the first time you open it, which voice she uses (by default the best female English voice installed; add a premium voice such as Ava or Zoe in System Settings › Accessibility › Spoken Content › System Voice › Manage Voices for a more natural sound), and whether the interface chimes play.
+
+Vega finds `claude` even when launched from Finder or launchd, where `PATH` is minimal: it checks `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, npm/Volta/Bun/pnpm and nvm locations, then your login shell. Set a custom path in Settings › Claude if yours is elsewhere.
 
 ## Files
 
@@ -268,5 +270,5 @@ morning-cli hook uninstall
 ```
 
 ```bash
-rm -rf /Applications/Morning.app ~/Library/Application\ Support/Morning ~/Library/Logs/Morning ~/.morning
+rm -rf /Applications/Vega.app ~/Library/Application\ Support/Morning ~/Library/Logs/Morning ~/.morning
 ```
