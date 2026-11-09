@@ -20,14 +20,16 @@ struct MorningApp: App {
             RootView()
                 .environment(model)
                 .onOpenURL { model.handle($0) }
+                .environment(\.accent, model.accent)
                 .tint(model.accent)
-                .frame(minWidth: Metrics.windowMinWidth, minHeight: Metrics.windowMinHeight)
+                .frame(minWidth: DS.Size.windowMinWidth, minHeight: DS.Size.windowMinHeight)
                 .task { await model.load() }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     Task { await model.reloadBriefings() }
                 }
         }
-        .defaultSize(width: 1180, height: 820)
+        .defaultSize(width: 1280, height: 860)
+        .windowStyle(.hiddenTitleBar)
         // morning:// links (from the scheduler, notifications) come to this window.
         .handlesExternalEvents(matching: ["*"])
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -36,6 +38,7 @@ struct MorningApp: App {
         MenuBarExtra {
             MenuBarView()
                 .environment(model)
+                .environment(\.accent, model.accent)
                 .tint(model.accent)
         } label: {
             Image(systemName: model.isGenerating ? "sun.horizon.circle" : "sun.horizon.fill")
@@ -68,7 +71,7 @@ struct MorningCommands: Commands {
 
         CommandGroup(after: .sidebar) {
             Divider()
-            ForEach(SidebarItem.allCases) { item in
+            ForEach(SidebarItem.views) { item in
                 Button(item.title) { model.selection = item }
                     .keyboardShortcut(item.shortcut, modifiers: .command)
             }

@@ -51,6 +51,8 @@ public struct MorningSettings: Codable, Sendable, Hashable {
     public var staleBranchDays: Int
     public var maxLookbackDays: Int
     public var accentColorHex: String?
+    /// Optional deadlines per project id (`repo:daybase` → date), shown as `T-18d`.
+    public var projectDeadlines: [String: Date]
 
     public static let `default` = MorningSettings()
 
@@ -70,7 +72,8 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         extraInstructions: String = "",
         staleBranchDays: Int = 14,
         maxLookbackDays: Int = 4,
-        accentColorHex: String? = nil
+        accentColorHex: String? = nil,
+        projectDeadlines: [String: Date] = [:]
     ) {
         self.repoRoots = repoRoots
         self.scanDepth = scanDepth
@@ -88,6 +91,7 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         self.staleBranchDays = staleBranchDays
         self.maxLookbackDays = maxLookbackDays
         self.accentColorHex = accentColorHex
+        self.projectDeadlines = projectDeadlines
     }
 
     public init(from decoder: any Decoder) throws {
@@ -111,6 +115,7 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         staleBranchDays = try c.decodeIfPresent(Int.self, forKey: .staleBranchDays) ?? d.staleBranchDays
         maxLookbackDays = try c.decodeIfPresent(Int.self, forKey: .maxLookbackDays) ?? d.maxLookbackDays
         accentColorHex = try c.decodeIfPresent(String.self, forKey: .accentColorHex)
+        projectDeadlines = try c.decodeIfPresent([String: Date].self, forKey: .projectDeadlines) ?? [:]
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -131,12 +136,13 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         try c.encode(staleBranchDays, forKey: .staleBranchDays)
         try c.encode(maxLookbackDays, forKey: .maxLookbackDays)
         try c.encodeIfPresent(accentColorHex, forKey: .accentColorHex)
+        try c.encode(projectDeadlines, forKey: .projectDeadlines)
     }
 
     private enum CodingKeys: String, CodingKey {
         case repoRoots, scanDepth, discoverFromClaudeSessions, briefingHour, briefingMinute
         case enabledCollectors, calendarIDs, reminderListIDs, claudeModel, claudePath, gitPath, ghPath
-        case extraInstructions, staleBranchDays, maxLookbackDays, accentColorHex
+        case extraInstructions, staleBranchDays, maxLookbackDays, accentColorHex, projectDeadlines
     }
 
     public func isEnabled(_ kind: CollectorKind) -> Bool { enabledCollectors.contains(kind) }

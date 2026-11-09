@@ -29,6 +29,12 @@ enum Format {
         }
     }
 
+    /// `48s`, `1m04s`.
+    static func duration(ms: Int) -> String {
+        let seconds = ms / 1000
+        return seconds < 60 ? "\(seconds)s" : "\(seconds / 60)m\(String(format: "%02d", seconds % 60))s"
+    }
+
     static func minutes(_ value: Int) -> String {
         if value < 60 { return "\(value) min" }
         return value % 60 == 0 ? "\(value / 60) h" : "\(value / 60) h \(value % 60) min"

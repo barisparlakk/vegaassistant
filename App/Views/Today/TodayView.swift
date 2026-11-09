@@ -28,17 +28,6 @@ struct TodayView: View {
         }
         .animation(Motion.spring, value: model.isGenerating)
         .navigationTitle("Today")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    model.regenerate()
-                } label: {
-                    Label("Regenerate", systemImage: "arrow.clockwise")
-                }
-                .disabled(model.isGenerating)
-                .help("Regenerate today's briefing (⌘R)")
-            }
-        }
     }
 }
 

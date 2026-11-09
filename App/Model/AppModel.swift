@@ -4,7 +4,7 @@ import MorningKit
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, history, projects, settings
+    case today, history, projects, news, settings
 
     var id: String { rawValue }
 
@@ -13,15 +13,27 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .today: "Today"
         case .history: "History"
         case .projects: "Projects"
+        case .news: "News"
         case .settings: "Settings"
         }
     }
+
+    /// Shown in the sidebar and command menus.
+    var keys: String {
+        switch self {
+        case .settings: "⌘,"
+        default: "⌘\(shortcut.character)"
+        }
+    }
+
+    static let views: [SidebarItem] = [.today, .history, .projects, .news]
 
     var symbol: String {
         switch self {
         case .today: "sun.horizon"
         case .history: "clock.arrow.circlepath"
         case .projects: "square.grid.2x2"
+        case .news: "newspaper"
         case .settings: "gearshape"
         }
     }
@@ -31,7 +43,8 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .today: "1"
         case .history: "2"
         case .projects: "3"
-        case .settings: "4"
+        case .news: "4"
+        case .settings: ","
         }
     }
 }
@@ -50,6 +63,7 @@ final class AppModel {
     var today: TodayState = .loading
     var history: [BriefingSummary] = []
     var selectedHistoryID: String?
+    var selectedProjectID: String?
     var historyBriefing: Briefing?
     var generation: GenerationProgress?
     var lastError: String?
@@ -66,7 +80,20 @@ final class AppModel {
         self.service = service
     }
 
-    var accent: Color { AccentChoice(hex: settings.accentColorHex).color }
+    /// The user's accent: a stored `#RRGGBB`, or the console amber.
+    var accent: Color {
+        guard let hex = settings.accentColorHex, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else {
+            return DS.Color.defaultAccent
+        }
+        return Color(hex: value)
+    }
+
+    /// Days until a project's deadline, if one is set.
+    func daysUntilDeadline(_ projectID: String, now: Date = .now) -> Int? {
+        guard let deadline = settings.projectDeadlines[projectID] else { return nil }
+        let calendar = Calendar.current
+        return calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: deadline)).day
+    }
 
     var isGenerating: Bool { generation != nil }
 

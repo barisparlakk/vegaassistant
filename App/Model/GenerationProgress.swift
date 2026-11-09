@@ -34,6 +34,17 @@ final class GenerationProgress {
         return Double(finished) / Double(max(steps.count, 1))
     }
 
+    /// `collecting git · github…` / `claude ▸ writing 23s` for the status bar.
+    func consoleLine(now: Date) -> String {
+        let seconds = Int(now.timeIntervalSince(startedAt))
+        if let claude = steps.first(where: { $0.id == "claude" }), claude.state == .running {
+            return "claude ▸ writing \(seconds)s"
+        }
+        let running = steps.filter { $0.state == .running }.map { $0.title.lowercased() }
+        if running.isEmpty { return "\(phase.lowercased()) \(seconds)s" }
+        return "collecting \(running.prefix(3).joined(separator: " · "))\(running.count > 3 ? "…" : "") \(seconds)s"
+    }
+
     func apply(_ event: GenerationEvent) {
         withAnimation(Motion.snappy) {
             switch event {
