@@ -29,6 +29,33 @@ enum Format {
         }
     }
 
+    /// `04:12`, `1:04:12`.
+    static func clock(_ interval: TimeInterval) -> String {
+        let total = max(0, Int(interval))
+        let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60)
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
+    }
+
+    /// `45m`, `1h20m` — compact estimates for mono columns.
+    static func estimate(_ minutes: Int) -> String {
+        minutes < 60 ? "\(minutes)m" : (minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h\(String(format: "%02d", minutes % 60))m")
+    }
+
+    /// `MON 09 NOV`
+    static func consoleDate(_ date: Date) -> String {
+        let style = Date.FormatStyle(locale: Locale(identifier: "en_US_POSIX")).weekday(.abbreviated).day(.twoDigits).month(.abbreviated)
+        let parts = date.formatted(style).replacingOccurrences(of: ",", with: "").split(separator: " ")
+        // en_US gives "Mon Nov 09": reorder to "MON 09 NOV".
+        guard parts.count == 3 else { return date.formatted(style).uppercased() }
+        return "\(parts[0]) \(parts[2]) \(parts[1])".uppercased()
+    }
+
+    /// `48s`, `1m04s`.
+    static func duration(ms: Int) -> String {
+        let seconds = ms / 1000
+        return seconds < 60 ? "\(seconds)s" : "\(seconds / 60)m\(String(format: "%02d", seconds % 60))s"
+    }
+
     static func minutes(_ value: Int) -> String {
         if value < 60 { return "\(value) min" }
         return value % 60 == 0 ? "\(value / 60) h" : "\(value / 60) h \(value % 60) min"

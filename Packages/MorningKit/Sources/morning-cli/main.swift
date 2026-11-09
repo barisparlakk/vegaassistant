@@ -21,6 +21,14 @@ commands:
   schedule <install|uninstall|status>
               Daily LaunchAgent that runs `generate --trigger scheduled --if-needed`
       --time <HH:MM>                override the time from Settings
+  news        Print today's news feed
+      --refresh                     search again now (one web-search run)
+      --dry-run                     print the news prompt instead of searching
+      --json                        print JSON
+  ask "<question>"
+              Ask Vega about your day (uses today's briefing and news)
+      --dry-run                     print the prompt instead of asking
+      --json                        print the answer and actions as JSON
   hook <install|uninstall|status|snippet>
               Claude Code Stop hook (merged into ~/.claude/settings.json with a backup)
   doctor      Check tools, permissions and paths
@@ -46,6 +54,7 @@ struct Options {
     var dryRun = false
     var model: String?
     var time: String?
+    var refresh = false
 
     init(_ arguments: [String]) throws {
         var remaining = arguments[...]
@@ -66,6 +75,7 @@ struct Options {
             case "--dry-run": dryRun = true
             case "--model": model = try value(for: item)
             case "--time": time = try value(for: item)
+            case "--refresh": refresh = true
             case "--trigger":
                 let raw = try value(for: item)
                 guard let parsed = Briefing.Trigger(rawValue: raw) else { throw CLIError(description: "--trigger must be manual or scheduled") }
@@ -170,11 +180,11 @@ func handOffToAppIfNeeded(options: Options, env: Environment) async throws -> Bo
         log("Today's briefing already exists. Nothing to do.")
         return true
     }
-    log("\(Date.now.formatted(.iso8601)) Calendar/Reminders access belongs to Morning.app — handing the run to the app.")
+    log("\(Date.now.formatted(.iso8601)) Calendar/Reminders access belongs to Vega.app — handing the run to the app.")
     if await AppHandoff.open(AppHandoff.generateURL(trigger: options.trigger, ifNeeded: options.ifNeeded)) {
         return true
     }
-    log("Couldn't reach Morning.app; generating here without calendar data.")
+    log("Couldn't reach Vega.app; generating here without calendar data.")
     return false
 }
 
@@ -210,6 +220,67 @@ func runSchedule(_ options: Options) async throws {
         print("Log:  \(paths.abbreviate(paths.logs.appending(path: "scheduler.log").path))")
     default:
         throw CLIError(description: "schedule takes install, uninstall or status")
+    }
+}
+
+func runAsk(_ options: Options) async throws {
+    guard let text = options.argument?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+        throw CLIError(description: "usage: morning-cli ask \"what's left on thermground?\"")
+    }
+    let env = Environment(options: options)
+    let briefing = BriefingStore(paths: env.paths).latest()
+    let news = NewsStore(paths: env.paths).latest(onOrBefore: Briefing.id(for: .now))?.allItems ?? []
+    let first = NSFullUserName().split(separator: " ").first.map(String.init)
+    let question = VegaQuestion(text: text, briefing: briefing, news: news, userName: first)
+    if options.dryRun {
+        let prompt = AskVega.prompt(for: question)
+        print("=== SYSTEM\n\(prompt.system)\n\n=== USER\n\(prompt.user)\n\n=== SCHEMA\n\(prompt.schema)")
+        return
+    }
+    let answer = try await AskVega.ask(question, settings: env.settings, paths: env.paths)
+    if options.json {
+        FileHandle.standardOutput.write(try JSONCoding.prettyEncoder.encode(answer))
+        print()
+        return
+    }
+    print(answer.answer)
+    for action in answer.actions {
+        print("  → \(action.label) (\(action.kind.rawValue)\(action.target.map { ": \($0)" } ?? ""))")
+    }
+}
+
+func runNews(_ options: Options) async throws {
+    let env = Environment(options: options)
+    let id = Briefing.id(for: .now)
+    if options.dryRun {
+        let facts = BriefingStore(paths: env.paths).latest()?.facts
+        let prompt = NewsPrompt.build(settings: env.settings, facts: facts, now: .now)
+        print("=== SYSTEM\n\(prompt.system)\n\n=== USER\n\(prompt.user)\n\n=== SCHEMA\n\(prompt.schema)")
+        return
+    }
+    let feed: NewsFeed
+    if options.refresh {
+        log("Searching the web for news… (one claude run, usually 30–90 s)")
+        feed = try await NewsGenerator(settings: env.settings, paths: env.paths).refresh()
+    } else if let saved = NewsStore(paths: env.paths).latest(onOrBefore: id) {
+        feed = saved
+    } else {
+        throw CLIError(description: "no news yet — run `morning-cli news --refresh` or generate a briefing")
+    }
+    if options.json {
+        FileHandle.standardOutput.write(try JSONCoding.prettyEncoder.encode(feed))
+        print()
+        return
+    }
+    for category in feed.categories {
+        print("\n\(category.label)")
+        if category.items.isEmpty { print("  (nothing notable)") }
+        for (index, item) in category.items.enumerated() {
+            let date = item.publishedAt.map { " · " + $0.formatted(date: .abbreviated, time: .omitted) } ?? ""
+            print(String(format: "  %02d ", index + 1) + item.title)
+            print("     \(item.source)\(date) — \(item.url)")
+            if let relevance = item.relevance { print("     ↳ \(relevance)") }
+        }
     }
 }
 
@@ -295,6 +366,8 @@ do {
     case "context": try await runContext(options)
     case "list": runList(options)
     case "show": try runShow(options)
+    case "news": try await runNews(options)
+    case "ask": try await runAsk(options)
     case "schedule": try await runSchedule(options)
     case "hook": try runHook(options)
     case "doctor": await runDoctor()

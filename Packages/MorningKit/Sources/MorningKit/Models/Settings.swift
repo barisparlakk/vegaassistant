@@ -1,7 +1,10 @@
 import Foundation
 
 public enum CollectorKind: String, Codable, Sendable, CaseIterable, Identifiable, Hashable {
-    case claudeSessions, sessionLog, git, github, calendar, reminders, notes
+    case claudeSessions, sessionLog, git, github, calendar, reminders, notes, news
+
+    /// Sources gathered by the collection pipeline (news is a separate web-search run).
+    public static let collected: [CollectorKind] = [.claudeSessions, .sessionLog, .git, .github, .calendar, .reminders, .notes]
 
     public var id: String { rawValue }
 
@@ -14,6 +17,7 @@ public enum CollectorKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .calendar: "Calendar"
         case .reminders: "Reminders"
         case .notes: "TODO.md / NOTES.md"
+        case .news: "News (web search)"
         }
     }
 
@@ -26,6 +30,7 @@ public enum CollectorKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .calendar: "calendar"
         case .reminders: "checklist"
         case .notes: "note.text"
+        case .news: "newspaper"
         }
     }
 }
@@ -51,6 +56,11 @@ public struct MorningSettings: Codable, Sendable, Hashable {
     public var staleBranchDays: Int
     public var maxLookbackDays: Int
     public var accentColorHex: String?
+    /// Optional deadlines per project id (`repo:daybase` → date), shown as `T-18d`.
+    public var projectDeadlines: [String: Date]
+    public var newsEnabled: Bool
+    public var newsTopics: [NewsTopic]
+    public var newsItemsPerCategory: Int
 
     public static let `default` = MorningSettings()
 
@@ -70,7 +80,11 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         extraInstructions: String = "",
         staleBranchDays: Int = 14,
         maxLookbackDays: Int = 4,
-        accentColorHex: String? = nil
+        accentColorHex: String? = nil,
+        projectDeadlines: [String: Date] = [:],
+        newsEnabled: Bool = true,
+        newsTopics: [NewsTopic] = NewsTopic.defaults,
+        newsItemsPerCategory: Int = 5
     ) {
         self.repoRoots = repoRoots
         self.scanDepth = scanDepth
@@ -88,6 +102,10 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         self.staleBranchDays = staleBranchDays
         self.maxLookbackDays = maxLookbackDays
         self.accentColorHex = accentColorHex
+        self.projectDeadlines = projectDeadlines
+        self.newsEnabled = newsEnabled
+        self.newsTopics = newsTopics
+        self.newsItemsPerCategory = newsItemsPerCategory
     }
 
     public init(from decoder: any Decoder) throws {
@@ -111,6 +129,10 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         staleBranchDays = try c.decodeIfPresent(Int.self, forKey: .staleBranchDays) ?? d.staleBranchDays
         maxLookbackDays = try c.decodeIfPresent(Int.self, forKey: .maxLookbackDays) ?? d.maxLookbackDays
         accentColorHex = try c.decodeIfPresent(String.self, forKey: .accentColorHex)
+        projectDeadlines = try c.decodeIfPresent([String: Date].self, forKey: .projectDeadlines) ?? [:]
+        newsEnabled = try c.decodeIfPresent(Bool.self, forKey: .newsEnabled) ?? d.newsEnabled
+        newsTopics = try c.decodeIfPresent([NewsTopic].self, forKey: .newsTopics) ?? d.newsTopics
+        newsItemsPerCategory = try c.decodeIfPresent(Int.self, forKey: .newsItemsPerCategory) ?? d.newsItemsPerCategory
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -131,12 +153,17 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         try c.encode(staleBranchDays, forKey: .staleBranchDays)
         try c.encode(maxLookbackDays, forKey: .maxLookbackDays)
         try c.encodeIfPresent(accentColorHex, forKey: .accentColorHex)
+        try c.encode(projectDeadlines, forKey: .projectDeadlines)
+        try c.encode(newsEnabled, forKey: .newsEnabled)
+        try c.encode(newsTopics, forKey: .newsTopics)
+        try c.encode(newsItemsPerCategory, forKey: .newsItemsPerCategory)
     }
 
     private enum CodingKeys: String, CodingKey {
         case repoRoots, scanDepth, discoverFromClaudeSessions, briefingHour, briefingMinute
         case enabledCollectors, calendarIDs, reminderListIDs, claudeModel, claudePath, gitPath, ghPath
-        case extraInstructions, staleBranchDays, maxLookbackDays, accentColorHex
+        case extraInstructions, staleBranchDays, maxLookbackDays, accentColorHex, projectDeadlines
+        case newsEnabled, newsTopics, newsItemsPerCategory
     }
 
     public func isEnabled(_ kind: CollectorKind) -> Bool { enabledCollectors.contains(kind) }

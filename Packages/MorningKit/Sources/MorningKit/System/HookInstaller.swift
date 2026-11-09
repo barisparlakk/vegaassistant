@@ -13,7 +13,7 @@ public struct HookInstaller: Sendable {
         public var errorDescription: String? {
             switch self {
             case let .unreadableSettings(reason):
-                "~/.claude/settings.json isn't valid JSON, so Morning left it untouched (\(reason)). Fix it, or add the hook by hand."
+                "~/.claude/settings.json isn't valid JSON, so Vega left it untouched (\(reason)). Fix it, or add the hook by hand."
             }
         }
     }

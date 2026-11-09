@@ -4,7 +4,7 @@ import MorningKit
 import SwiftUI
 
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case today, history, projects, settings
+    case today, history, projects, news, settings
 
     var id: String { rawValue }
 
@@ -13,15 +13,27 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .today: "Today"
         case .history: "History"
         case .projects: "Projects"
+        case .news: "News"
         case .settings: "Settings"
         }
     }
 
+    /// Shown in the sidebar and command menus.
+    var keys: String {
+        switch self {
+        case .settings: "⌘,"
+        default: "⌘\(shortcut.character)"
+        }
+    }
+
+    static let views: [SidebarItem] = [.today, .history, .projects, .news]
+
     var symbol: String {
         switch self {
-        case .today: "sun.horizon"
+        case .today: "sparkle"
         case .history: "clock.arrow.circlepath"
         case .projects: "square.grid.2x2"
+        case .news: "newspaper"
         case .settings: "gearshape"
         }
     }
@@ -31,7 +43,8 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .today: "1"
         case .history: "2"
         case .projects: "3"
-        case .settings: "4"
+        case .news: "4"
+        case .settings: ","
         }
     }
 }
@@ -50,11 +63,15 @@ final class AppModel {
     var today: TodayState = .loading
     var history: [BriefingSummary] = []
     var selectedHistoryID: String?
+    var selectedProjectID: String?
     var historyBriefing: Briefing?
     var generation: GenerationProgress?
     var lastError: String?
     var settings = MorningSettings()
     var system = SystemStatus()
+    /// Vega's voice and interface sounds.
+    let voice = VegaVoice()
+    @ObservationIgnored let sounds = VegaSounds()
     /// Shown as an alert in Settings when installing the scheduler or hook fails.
     var settingsError: String?
     @ObservationIgnored private var rescheduleTask: Task<Void, Never>?
@@ -66,7 +83,20 @@ final class AppModel {
         self.service = service
     }
 
-    var accent: Color { AccentChoice(hex: settings.accentColorHex).color }
+    /// The user's accent: a stored `#RRGGBB`, or the console amber.
+    var accent: Color {
+        guard let hex = settings.accentColorHex, hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else {
+            return DS.Color.defaultAccent
+        }
+        return Color(hex: value)
+    }
+
+    /// Days until a project's deadline, if one is set.
+    func daysUntilDeadline(_ projectID: String, now: Date = .now) -> Int? {
+        guard let deadline = settings.projectDeadlines[projectID] else { return nil }
+        let calendar = Calendar.current
+        return calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: deadline)).day
+    }
 
     var isGenerating: Bool { generation != nil }
 
@@ -84,6 +114,30 @@ final class AppModel {
         system.notificationsAllowed = await notificationStatus()
         await service.repairLaunchAgentIfNeeded(hour: settings.briefingHour, minute: settings.briefingMinute)
         catchUpIfNeeded()
+        applyHotKey(GlobalHotKey.storedID)
+    }
+
+    // MARK: Floating assistant
+
+    @ObservationIgnored lazy var floating = FloatingAssistantController(model: self)
+    @ObservationIgnored private lazy var hotKey = GlobalHotKey { [weak self] in self?.floating.toggle() }
+
+    /// The shortcut's id (`off` when disabled), and an error if another app holds it.
+    private(set) var hotKeyID = GlobalHotKey.storedID
+    private(set) var hotKeyError: String?
+
+    /// Registers the floating assistant's global shortcut (or turns it off) and remembers it.
+    func applyHotKey(_ id: String) {
+        UserDefaults.standard.set(id, forKey: GlobalHotKey.defaultsKey)
+        hotKeyID = id
+        hotKeyError = nil
+        guard let combo = GlobalHotKey.options.first(where: { $0.id == id }) else {
+            hotKey.unregister()
+            return
+        }
+        if !hotKey.register(combo) {
+            hotKeyError = "\(combo.label) is already used by another app. Pick another."
+        }
     }
 
     /// launchd catches up after sleep, but not after a shutdown: if the scheduler is on, the
@@ -110,6 +164,10 @@ final class AppModel {
         case .today:
             selection = .today
             NSApp.activate()
+        case let .ask(question):
+            selection = .today
+            NSApp.activate()
+            ask(question)
         case nil:
             break
         }
@@ -121,12 +179,14 @@ final class AppModel {
         if let briefing = await service.latest() {
             checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id)
             if currentBriefing?.generatedAt != briefing.generatedAt {
-                withAnimation(Motion.spring) { today = .loaded(briefing) }
+                withAnimation(DS.Motion.standard) { today = .loaded(briefing) }
             }
         } else {
             today = .empty
         }
         history = await service.summaries()
+        newsState = await service.newsState()
+        await loadNews(for: currentBriefing?.id ?? Briefing.id(for: .now))
     }
 
     /// True when the newest briefing is from an earlier day.
@@ -143,8 +203,9 @@ final class AppModel {
         }
         let briefing = await service.briefing(id: id)
         if let briefing { checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id) }
+        await loadNews(for: id)
         guard selectedHistoryID == id else { return }
-        withAnimation(Motion.gentle) { historyBriefing = briefing }
+        withAnimation(DS.Motion.standard) { historyBriefing = briefing }
     }
 
     // MARK: Generation
@@ -157,7 +218,7 @@ final class AppModel {
         guard !isGenerating else { return }
         lastError = nil
         let progress = GenerationProgress()
-        withAnimation(Motion.spring) { generation = progress }
+        withAnimation(DS.Motion.standard) { generation = progress }
         let service = service
         Task {
             do {
@@ -167,18 +228,20 @@ final class AppModel {
                 checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id)
                 history = await service.summaries()
                 if selectedHistoryID == briefing.id { historyBriefing = briefing }
-                withAnimation(Motion.spring) {
+                await loadNews(for: briefing.id)
+                withAnimation(DS.Motion.standard) {
                     today = .loaded(briefing)
                     generation = nil
                 }
+                sounds.play(.ready)
                 await notifyIfBackground(briefing, force: trigger == .scheduled)
                 system = await service.systemStatus()
                 system.notificationsAllowed = await notificationStatus()
             } catch GeneratorError.alreadyGeneratedToday {
-                withAnimation(Motion.spring) { generation = nil }
+                withAnimation(DS.Motion.standard) { generation = nil }
                 await reloadBriefings()
             } catch {
-                withAnimation(Motion.spring) {
+                withAnimation(DS.Motion.standard) {
                     lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                     generation = nil
                     if case .loading = today { today = .empty }
@@ -198,6 +261,320 @@ final class AppModel {
         return await Notifier.shared.authorizationStatus()
     }
 
+    // MARK: News
+
+    var newsFeeds: [String: NewsFeed] = [:]
+    var newsState = NewsState()
+    var isRefreshingNews = false
+    var newsError: String?
+
+    /// The id news is shown for: today's briefing (or today, before the first one).
+    var newsID: String { currentBriefing?.id ?? Briefing.id(for: .now) }
+
+    var currentNews: NewsFeed? { newsFeeds[newsID] }
+
+    func refreshNews() {
+        guard !isRefreshingNews else { return }
+        isRefreshingNews = true
+        newsError = nil
+        let service = service
+        let id = Briefing.id(for: .now)
+        Task {
+            do {
+                let feed = try await service.refreshNews()
+                withAnimation(DS.Motion.standard) {
+                    newsFeeds[id] = feed
+                    if newsID != id { newsFeeds[newsID] = feed }
+                }
+            } catch {
+                newsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            isRefreshingNews = false
+        }
+    }
+
+    func loadNews(for briefingID: String) async {
+        newsFeeds[briefingID] = await service.news(for: briefingID)
+    }
+
+    /// Top three for the Today preview: stories tied to a project first, then one per category.
+    func newsPreview(for briefingID: String) -> [NewsItem] {
+        guard settings.newsEnabled, let feed = newsFeeds[briefingID] else { return [] }
+        let related = feed.allItems.filter { $0.relevance != nil }
+        let firsts = feed.categories.compactMap(\.items.first)
+        return Array((related + firsts + feed.allItems).uniqued(by: \.id).prefix(3))
+    }
+
+    func isRead(_ item: NewsItem) -> Bool { newsState.read.contains(item.id) }
+    func isSaved(_ item: NewsItem) -> Bool { newsState.saved[item.id] != nil }
+
+    func openNews(_ item: NewsItem) {
+        Opener.url(item.url)
+        guard !isRead(item) else { return }
+        withAnimation(DS.Motion.fast) { _ = newsState.read.insert(item.id) }
+        persistNewsState()
+    }
+
+    func toggleSaved(_ item: NewsItem) {
+        withAnimation(DS.Motion.fast) {
+            if isSaved(item) { newsState.saved[item.id] = nil } else { newsState.saved[item.id] = item }
+        }
+        persistNewsState()
+    }
+
+    private func persistNewsState() {
+        let state = newsState
+        let service = service
+        Task { await service.saveNewsState(state) }
+    }
+
+    // MARK: Focus blocks & skips (app-local)
+
+    /// A timed focus block on one task, shown in the status bar. Kept in UserDefaults:
+    /// it's a UI convenience, not part of the briefing.
+    struct FocusBlock: Codable, Equatable {
+        var briefingID: String
+        var taskKey: String
+        var title: String
+        var startedAt: Date
+    }
+
+    var focusBlock: FocusBlock? = AppModel.storedBlock() {
+        didSet { AppModel.store(focusBlock, key: Self.blockKey) }
+    }
+
+    private(set) var skippedKeys: [String: Set<String>] = AppModel.storedSkips() {
+        didSet { AppModel.store(skippedKeys.mapValues { $0.sorted() }, key: Self.skipsKey) }
+    }
+
+    func startBlock(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
+        withAnimation(DS.Motion.fast) {
+            if focusBlock?.taskKey == task.checkKey {
+                focusBlock = nil
+                sounds.play(.focusEnd)
+                return
+            }
+            // Done or skipped tasks don't get a block.
+            guard !isChecked(task, in: briefingID), !isSkipped(task, in: briefingID) else { return }
+            focusBlock = FocusBlock(briefingID: briefingID, taskKey: task.checkKey, title: task.title, startedAt: .now)
+            sounds.play(.focusStart)
+        }
+    }
+
+    // MARK: Voice
+
+    static let speakOnOpenKey = "vega.speakOnOpen"
+    static let mutedKey = "vega.muted"
+    private static let spokenKey = "vega.spokenBriefingID"
+
+    var speaksOnOpen: Bool = UserDefaults.standard.object(forKey: AppModel.speakOnOpenKey) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(speaksOnOpen, forKey: Self.speakOnOpenKey) }
+    }
+
+    var isMuted: Bool = UserDefaults.standard.bool(forKey: AppModel.mutedKey) {
+        didSet {
+            UserDefaults.standard.set(isMuted, forKey: Self.mutedKey)
+            if isMuted { voice.stop() }
+        }
+    }
+
+    /// Vega's script for a briefing, with today's news.
+    func script(for briefing: Briefing, isToday: Bool) -> [VegaLine] {
+        VegaScript.lines(for: briefing, news: newsPreview(for: briefing.id), isToday: isToday)
+    }
+
+    /// What Vega says about today, shown in the conversation (spoken or not).
+    private(set) var todayLines: [VegaLine] = []
+
+    /// True while she's reading the briefing script (not an answer).
+    var isSpeakingScript: Bool {
+        voice.status != .idle && voice.lines.first?.id == todayLines.first?.id
+    }
+
+    /// Speaks today's briefing the first time it's opened (once per briefing), or shows it.
+    /// Later calls for the same briefing (news arriving, a regenerate) refresh the lines
+    /// without interrupting her.
+    func presentToday(_ briefing: Briefing) {
+        let lines = script(for: briefing, isToday: true)
+        if presentedBriefingID == briefing.id {
+            if !isSpeakingScript, todayLines != lines { todayLines = lines }
+            return
+        }
+        if presentedBriefingID != nil { exchanges = [] } // a new day starts a new conversation
+        presentedBriefingID = briefing.id
+        todayLines = lines
+        let alreadySpoken = UserDefaults.standard.string(forKey: Self.spokenKey) == briefing.id
+        if !alreadySpoken, speaksOnOpen, !isMuted {
+            UserDefaults.standard.set(briefing.id, forKey: Self.spokenKey)
+            sounds.play(.wake)
+            voice.speak(lines)
+        }
+    }
+
+    @ObservationIgnored private var presentedBriefingID: String?
+
+    /// Plays today's briefing from the top (the Replay button).
+    func speakAgain(_ briefing: Briefing) {
+        if isMuted { isMuted = false }
+        listener.cancel()
+        todayLines = script(for: briefing, isToday: true)
+        sounds.play(.wake)
+        voice.speak(todayLines)
+    }
+
+    // MARK: Ask Vega
+
+    /// One question and Vega's answer.
+    struct Exchange: Identifiable, Equatable {
+        let id = UUID()
+        let askedAt = Date.now
+        let question: String
+        var answer: VegaAnswer?
+        var error: String?
+
+        var isThinking: Bool { answer == nil && error == nil }
+        var lineID: String { "answer-\(id.uuidString)" }
+    }
+
+    /// Today's questions and answers, oldest first (kept in memory for the day).
+    private(set) var exchanges: [Exchange] = []
+    let listener = VegaListener()
+    var isThinking: Bool { exchanges.contains(where: \.isThinking) }
+
+    /// Listens for a spoken question, then asks it.
+    func listen() {
+        if listener.isListening {
+            listener.stop()
+            return
+        }
+        voice.stop()
+        sounds.play(.wake)
+        listener.start { [weak self] text in
+            guard let self, !text.isEmpty else { return }
+            self.ask(text)
+        }
+    }
+
+    func ask(_ text: String) {
+        let question = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !isThinking else { return }
+        voice.stop()
+        let exchange = Exchange(question: question)
+        withAnimation(DS.Motion.standard) { exchanges.append(exchange) }
+
+        let briefing = currentBriefing
+        let checked = briefing?.structured?.focus.tasks.filter { isChecked($0, in: briefing?.id ?? "") }.map(\.id) ?? []
+        let request = VegaQuestion(
+            text: question,
+            briefing: briefing,
+            news: briefing.flatMap { newsFeeds[$0.id]?.allItems } ?? [],
+            history: exchanges.compactMap { item in item.answer.map { VegaExchangeRecord(question: item.question, answer: $0.answer) } },
+            userName: NSFullUserName().split(separator: " ").first.map(String.init),
+            focusBlock: focusBlock?.title,
+            checkedTaskIDs: checked
+        )
+        let service = service
+        askTask = Task {
+            do {
+                let answer: VegaAnswer
+                do {
+                    answer = try await service.ask(request)
+                } catch ClaudeError.timedOut {
+                    // A stuck start is usually a one-off; try once more before giving up.
+                    try Task.checkCancellation()
+                    answer = try await service.ask(request)
+                }
+                try Task.checkCancellation()
+                update(exchange.id) { $0.answer = answer }
+                if !isMuted {
+                    voice.speak([VegaLine(id: exchange.lineID, text: answer.answer)])
+                }
+            } catch is CancellationError {
+                update(exchange.id) { $0.error = "Stopped." }
+            } catch {
+                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                update(exchange.id) { $0.error = Task.isCancelled ? "Stopped." : message }
+            }
+            askTask = nil
+        }
+    }
+
+    @ObservationIgnored private var askTask: Task<Void, Never>?
+
+    /// Stops waiting for an answer.
+    func stopAsking() {
+        askTask?.cancel()
+    }
+
+    /// Asks a failed question again.
+    func retry(_ exchange: Exchange) {
+        exchanges.removeAll { $0.id == exchange.id }
+        ask(exchange.question)
+    }
+
+    private func update(_ id: UUID, _ change: (inout Exchange) -> Void) {
+        guard let index = exchanges.firstIndex(where: { $0.id == id }) else { return }
+        withAnimation(DS.Motion.standard) { change(&exchanges[index]) }
+    }
+
+    /// Does what one of Vega's action buttons offers.
+    func perform(_ action: VegaAction) {
+        let briefing = currentBriefing
+        let project = briefing?.facts.projects.first { $0.id == action.target }
+        switch action.kind {
+        case .openTerminal: Opener.terminal(project?.path)
+        case .openEditor: Opener.editor(project?.path)
+        case .openURL: Opener.url(action.target)
+        case .startFocus:
+            if let briefing, let task = briefing.structured?.focus.tasks.first(where: { $0.id == action.target }) {
+                startBlock(task, in: briefing.id)
+            }
+        case .show:
+            if let target = action.target, let item = SidebarItem(rawValue: target) { selection = item }
+        case .regenerate:
+            regenerate()
+        }
+    }
+
+    func stopBlock() {
+        guard focusBlock != nil else { return }
+        withAnimation(DS.Motion.fast) { focusBlock = nil }
+        sounds.play(.focusEnd)
+    }
+
+    func isSkipped(_ task: GeneratedBriefing.FocusTask, in briefingID: String) -> Bool {
+        skippedKeys[briefingID]?.contains(task.checkKey) ?? false
+    }
+
+    func toggleSkip(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
+        withAnimation(DS.Motion.fast) {
+            if isSkipped(task, in: briefingID) {
+                skippedKeys[briefingID]?.remove(task.checkKey)
+            } else {
+                skippedKeys[briefingID, default: []].insert(task.checkKey)
+                if focusBlock?.taskKey == task.checkKey { focusBlock = nil }
+            }
+        }
+    }
+
+    private static let blockKey = "focusBlock"
+    private static let skipsKey = "skippedTasks"
+
+    private static func storedBlock() -> FocusBlock? {
+        UserDefaults.standard.data(forKey: blockKey).flatMap { try? JSONDecoder().decode(FocusBlock.self, from: $0) }
+    }
+
+    private static func storedSkips() -> [String: Set<String>] {
+        guard let data = UserDefaults.standard.data(forKey: skipsKey),
+              let value = try? JSONDecoder().decode([String: [String]].self, from: data)
+        else { return [:] }
+        return value.mapValues(Set.init)
+    }
+
+    private static func store(_ value: some Encodable, key: String) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(value), forKey: key)
+    }
+
     // MARK: Tasks
 
     func isChecked(_ task: GeneratedBriefing.FocusTask, in briefingID: String) -> Bool {
@@ -206,7 +583,8 @@ final class AppModel {
 
     func toggle(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
         let checked = !isChecked(task, in: briefingID)
-        withAnimation(Motion.snappy) {
+        if checked { sounds.play(.done) }
+        withAnimation(DS.Motion.fast) {
             if checked {
                 checkedKeys[briefingID, default: []].insert(task.checkKey)
             } else {
@@ -311,7 +689,7 @@ extension AppModel {
     private func refreshStatus() async {
         var status = await service.systemStatus()
         status.notificationsAllowed = await notificationStatus()
-        withAnimation(Motion.snappy) { system = status }
+        withAnimation(DS.Motion.fast) { system = status }
     }
 
     func requestCalendarAccess() { requestAccess(.calendar) }
@@ -323,7 +701,7 @@ extension AppModel {
         Task {
             var status = await service.requestAccess(to: kind)
             status.notificationsAllowed = system.notificationsAllowed
-            withAnimation(Motion.snappy) { system = status }
+            withAnimation(DS.Motion.fast) { system = status }
         }
     }
 
@@ -353,6 +731,10 @@ extension AppModel {
         model.checkedKeys[MockData.briefing().id] = [MockData.generated.focus.tasks[1].checkKey]
         if generating { model.generation = .preview }
         model.system = .preview
+        if scenario != .empty {
+            model.newsFeeds[MockData.briefing().id] = MockData.news()
+            model.newsState = NewsState(read: ["n3"])
+        }
         return model
     }
 }

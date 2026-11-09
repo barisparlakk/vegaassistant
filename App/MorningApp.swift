@@ -16,18 +16,20 @@ struct MorningApp: App {
     }
 
     var body: some Scene {
-        Window("Morning", id: WindowID.main) {
+        Window("Vega", id: WindowID.main) {
             RootView()
                 .environment(model)
                 .onOpenURL { model.handle($0) }
+                .environment(\.accent, model.accent)
                 .tint(model.accent)
-                .frame(minWidth: Metrics.windowMinWidth, minHeight: Metrics.windowMinHeight)
+                .frame(minWidth: DS.Size.windowMinWidth, minHeight: DS.Size.windowMinHeight)
                 .task { await model.load() }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     Task { await model.reloadBriefings() }
                 }
         }
-        .defaultSize(width: 1180, height: 820)
+        .defaultSize(DS.Size.windowDefault)
+        .windowStyle(.hiddenTitleBar)
         // morning:// links (from the scheduler, notifications) come to this window.
         .handlesExternalEvents(matching: ["*"])
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -36,10 +38,11 @@ struct MorningApp: App {
         MenuBarExtra {
             MenuBarView()
                 .environment(model)
+                .environment(\.accent, model.accent)
                 .tint(model.accent)
         } label: {
-            Image(systemName: model.isGenerating ? "sun.horizon.circle" : "sun.horizon.fill")
-                .accessibilityLabel("Morning")
+            Image(nsImage: VegaMark.menuBarImage(isWorking: model.isGenerating))
+                .accessibilityLabel("Vega")
         }
         .menuBarExtraStyle(.window)
     }
@@ -64,11 +67,13 @@ struct MorningCommands: Commands {
             Button("Regenerate") { model.regenerate() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.isGenerating)
+            Divider()
+            Button("Floating Assistant") { model.floating.toggle() }
         }
 
         CommandGroup(after: .sidebar) {
             Divider()
-            ForEach(SidebarItem.allCases) { item in
+            ForEach(SidebarItem.views) { item in
                 Button(item.title) { model.selection = item }
                     .keyboardShortcut(item.shortcut, modifiers: .command)
             }

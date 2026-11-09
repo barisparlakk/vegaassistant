@@ -50,12 +50,16 @@ public struct ClaudeRunner: Sendable {
     public var model: String
     public var workingDirectory: URL
     public var timeout: Duration
+    /// Built-in tools Claude may use without asking. Empty for briefings (all facts are in
+    /// the prompt); `["WebSearch"]` for the news run.
+    public var tools: [String]
 
-    public init(executable: URL, model: String, workingDirectory: URL, timeout: Duration = .seconds(300)) {
+    public init(executable: URL, model: String, workingDirectory: URL, timeout: Duration = .seconds(300), tools: [String] = []) {
         self.executable = executable
         self.model = model
         self.workingDirectory = workingDirectory
         self.timeout = timeout
+        self.tools = tools
     }
 
     /// Variables kept from the parent, even though they match the scrub prefixes.
@@ -77,17 +81,25 @@ public struct ClaudeRunner: Sendable {
     }
 
     public func arguments(for prompt: BriefingPrompt) -> [String] {
-        [
+        var arguments = [
             "-p",
             "--output-format", "json",
             "--json-schema", prompt.schema,
             "--model", model,
             "--system-prompt", prompt.system,
-            "--tools", "", // everything is in the prompt; no file or shell access
+            // Only the named tools exist; never file or shell access.
+            "--tools", tools.joined(separator: ","),
+        ]
+        if !tools.isEmpty {
+            // Pre-approve them: a headless run can't answer a permission prompt.
+            arguments += ["--allowedTools", tools.joined(separator: ",")]
+        }
+        arguments += [
             "--strict-mcp-config", // don't start the user's MCP servers
             "--setting-sources", "", // ignore user/project settings, including their hooks
-            "--no-session-persistence", // keep briefing runs out of ~/.claude/projects
+            "--no-session-persistence", // keep these runs out of ~/.claude/projects
         ]
+        return arguments
     }
 
     public func run(_ prompt: BriefingPrompt) async throws -> ClaudeReply {

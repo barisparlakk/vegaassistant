@@ -19,6 +19,14 @@ protocol BriefingService: Sendable {
     func setHook(installed: Bool) async throws
     /// Re-points the scheduler at this copy of the app if it was moved.
     func repairLaunchAgentIfNeeded(hour: Int, minute: Int) async
+    /// The news feed for a day (or the newest one before it).
+    func news(for briefingID: String) async -> NewsFeed?
+    func newsState() async -> NewsState
+    func saveNewsState(_ state: NewsState) async
+    /// Runs the news search now (one web-search run) and saves it as today's feed.
+    func refreshNews() async throws -> NewsFeed
+    /// Answers a question about the day (one claude run).
+    func ask(_ question: VegaQuestion) async throws -> VegaAnswer
 }
 
 /// In-memory service with realistic data and a paced fake generation run.
@@ -103,6 +111,30 @@ actor MockBriefingService: BriefingService {
     }
 
     func repairLaunchAgentIfNeeded(hour: Int, minute: Int) async {}
+
+    private var news = NewsState(read: ["n3"])
+
+    func news(for briefingID: String) async -> NewsFeed? {
+        scenario == .empty ? nil : MockData.news()
+    }
+
+    func newsState() async -> NewsState { news }
+
+    func saveNewsState(_ state: NewsState) async { news = state }
+
+    func refreshNews() async throws -> NewsFeed {
+        try await Task.sleep(for: .seconds(1.5))
+        return MockData.news()
+    }
+
+    func ask(_ question: VegaQuestion) async throws -> VegaAnswer {
+        try await Task.sleep(for: .seconds(1.2))
+        let project = question.briefing?.facts.projects.first
+        return VegaAnswer(
+            answer: "Just the push: four commits are only on your Mac. Everything else is clean.",
+            actions: project.map { [VegaAction(kind: .openTerminal, label: "Open Terminal", target: $0.id)] } ?? []
+        )
+    }
 
     func requestAccess(to kind: CollectorKind) async -> SystemStatus {
         if kind == .calendar { status.calendarAccess = .granted }

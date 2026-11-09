@@ -35,13 +35,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UserDefaults.standard.set(key, forKey: Self.lastNotifiedKey)
 
         let content = UNMutableNotificationContent()
-        content.title = "Your morning briefing is ready"
+        content.title = "Vega: your briefing is ready"
         if let generated = briefing.structured {
             let project = briefing.facts.project(generated.focus.projectID)?.name ?? generated.focus.projectID
             content.subtitle = "Focus: \(project)"
             content.body = generated.headline
         } else {
-            content.body = "Open Morning to read today's briefing."
+            content.body = "Open Vega to hear today's briefing."
         }
         content.sound = .default
         content.threadIdentifier = "briefing"
