@@ -79,7 +79,10 @@ public struct BriefingGenerator: Sendable {
             guard let claude = collection.tools.claude else { throw GeneratorError.claudeNotFound }
 
             let runner = ClaudeRunner(executable: claude, model: settings.claudeModel, workingDirectory: paths.runDirectory)
+            // News runs alongside the briefing call; if the briefing fails, it's cancelled with it.
+            async let newsReport = gatherNews(id: id, facts: collection.facts, claude: claude, onEvent: onEvent)
             let (content, attempts, repairs) = try await ask(runner, prompt: prompt, facts: collection.facts, onEvent: onEvent)
+            let diagnostics = collection.reports + [await newsReport].compactMap { $0 }
 
             let briefing = Briefing(
                 id: id,
@@ -90,7 +93,7 @@ public struct BriefingGenerator: Sendable {
                 attempts: attempts,
                 facts: collection.facts,
                 content: content,
-                diagnostics: collection.reports,
+                diagnostics: diagnostics,
                 repairs: repairs
             )
             try store.save(briefing)
@@ -101,6 +104,25 @@ public struct BriefingGenerator: Sendable {
             runState.recordFailure(error.localizedDescription)
             throw error
         }
+    }
+
+    /// The news search, reported like a collector. Never throws: a failure is a report.
+    private func gatherNews(id: String, facts: BriefingFacts, claude: URL, onEvent: @escaping @Sendable (GenerationEvent) -> Void) async -> CollectorReport? {
+        guard settings.newsEnabled, !settings.newsTopics.isEmpty else { return nil }
+        onEvent(.collecting(.started(.news)))
+        let clock = ContinuousClock()
+        let start = clock.now
+        let report: CollectorReport
+        do {
+            let feed = try await NewsGenerator(settings: settings, paths: paths, calendar: calendar).generate(id: id, facts: facts, claude: claude)
+            report = CollectorReport(kind: .news, status: .ok, durationMs: (clock.now - start).milliseconds, itemCount: feed.allItems.count)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            report = CollectorReport(kind: .news, status: .failed, durationMs: (clock.now - start).milliseconds, message: error.localizedDescription)
+        }
+        onEvent(.collecting(.finished(report)))
+        return report
     }
 
     private func collect(period: Period, onEvent: @escaping @Sendable (GenerationEvent) -> Void) async -> CollectionResult {

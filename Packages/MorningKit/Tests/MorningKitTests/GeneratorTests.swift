@@ -269,15 +269,20 @@ struct StoreTests {
 @Suite("Generator end to end", .serialized)
 struct GeneratorEndToEndTests {
     /// A stand-in for `claude -p`: answers from files, counts calls, records argv and env.
-    static func fakeClaude(in home: TemporaryHome, answers: [String]) throws -> URL {
+    /// The news run is told apart by its `--tools WebSearch` argument and answered from
+    /// `news.json`, so briefing answers keep their numbering.
+    static func fakeClaude(in home: TemporaryHome, answers: [String], news: String = NewsSample.validJSON) throws -> URL {
         for (index, answer) in answers.enumerated() {
             let reply: [String: Any] = ["type": "result", "is_error": false, "result": answer, "duration_ms": 5]
             try JSONSerialization.data(withJSONObject: reply).write(to: home.root.appending(path: "answer\(index + 1).json"))
         }
+        let newsReply: [String: Any] = ["type": "result", "is_error": false, "result": news, "duration_ms": 5]
+        try JSONSerialization.data(withJSONObject: newsReply).write(to: home.root.appending(path: "news.json"))
         let script = home.root.appending(path: "claude")
         try """
         #!/bin/sh
         dir="$(dirname "$0")"
+        case "$*" in *WebSearch*) cat > "$dir/news-stdin.txt"; echo "$*" > "$dir/news-args.txt"; cat "$dir/news.json"; exit 0;; esac
         n=$(( $(cat "$dir/count" 2>/dev/null || echo 0) + 1 ))
         echo $n > "$dir/count"
         cat > "$dir/stdin$n.txt"

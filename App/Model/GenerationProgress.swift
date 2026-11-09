@@ -106,6 +106,7 @@ extension CollectorKind {
         case .calendar: "Calendar"
         case .reminders: "Reminders"
         case .notes: "Notes"
+        case .news: "News"
         }
     }
 }

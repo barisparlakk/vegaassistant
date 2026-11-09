@@ -1,7 +1,10 @@
 import Foundation
 
 public enum CollectorKind: String, Codable, Sendable, CaseIterable, Identifiable, Hashable {
-    case claudeSessions, sessionLog, git, github, calendar, reminders, notes
+    case claudeSessions, sessionLog, git, github, calendar, reminders, notes, news
+
+    /// Sources gathered by the collection pipeline (news is a separate web-search run).
+    public static let collected: [CollectorKind] = [.claudeSessions, .sessionLog, .git, .github, .calendar, .reminders, .notes]
 
     public var id: String { rawValue }
 
@@ -14,6 +17,7 @@ public enum CollectorKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .calendar: "Calendar"
         case .reminders: "Reminders"
         case .notes: "TODO.md / NOTES.md"
+        case .news: "News (web search)"
         }
     }
 
@@ -26,6 +30,7 @@ public enum CollectorKind: String, Codable, Sendable, CaseIterable, Identifiable
         case .calendar: "calendar"
         case .reminders: "checklist"
         case .notes: "note.text"
+        case .news: "newspaper"
         }
     }
 }

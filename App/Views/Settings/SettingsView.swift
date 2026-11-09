@@ -119,7 +119,7 @@ private struct SourcesSettings: View {
         }
 
         Section("Sources") {
-            ForEach(CollectorKind.allCases) { kind in
+            ForEach(CollectorKind.collected) { kind in
                 Toggle(isOn: Binding(
                     get: { model.settings.isEnabled(kind) },
                     set: { on in model.updateSettings { if on { $0.enabledCollectors.insert(kind) } else { $0.enabledCollectors.remove(kind) } } }

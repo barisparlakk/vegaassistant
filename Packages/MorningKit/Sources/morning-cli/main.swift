@@ -21,6 +21,10 @@ commands:
   schedule <install|uninstall|status>
               Daily LaunchAgent that runs `generate --trigger scheduled --if-needed`
       --time <HH:MM>                override the time from Settings
+  news        Print today's news feed
+      --refresh                     search again now (one web-search run)
+      --dry-run                     print the news prompt instead of searching
+      --json                        print JSON
   hook <install|uninstall|status|snippet>
               Claude Code Stop hook (merged into ~/.claude/settings.json with a backup)
   doctor      Check tools, permissions and paths
@@ -46,6 +50,7 @@ struct Options {
     var dryRun = false
     var model: String?
     var time: String?
+    var refresh = false
 
     init(_ arguments: [String]) throws {
         var remaining = arguments[...]
@@ -66,6 +71,7 @@ struct Options {
             case "--dry-run": dryRun = true
             case "--model": model = try value(for: item)
             case "--time": time = try value(for: item)
+            case "--refresh": refresh = true
             case "--trigger":
                 let raw = try value(for: item)
                 guard let parsed = Briefing.Trigger(rawValue: raw) else { throw CLIError(description: "--trigger must be manual or scheduled") }
@@ -213,6 +219,41 @@ func runSchedule(_ options: Options) async throws {
     }
 }
 
+func runNews(_ options: Options) async throws {
+    let env = Environment(options: options)
+    let id = Briefing.id(for: .now)
+    if options.dryRun {
+        let facts = BriefingStore(paths: env.paths).latest()?.facts
+        let prompt = NewsPrompt.build(settings: env.settings, facts: facts, now: .now)
+        print("=== SYSTEM\n\(prompt.system)\n\n=== USER\n\(prompt.user)\n\n=== SCHEMA\n\(prompt.schema)")
+        return
+    }
+    let feed: NewsFeed
+    if options.refresh {
+        log("Searching the web for news… (one claude run, usually 30–90 s)")
+        feed = try await NewsGenerator(settings: env.settings, paths: env.paths).refresh()
+    } else if let saved = NewsStore(paths: env.paths).latest(onOrBefore: id) {
+        feed = saved
+    } else {
+        throw CLIError(description: "no news yet — run `morning-cli news --refresh` or generate a briefing")
+    }
+    if options.json {
+        FileHandle.standardOutput.write(try JSONCoding.prettyEncoder.encode(feed))
+        print()
+        return
+    }
+    for category in feed.categories {
+        print("\n\(category.label)")
+        if category.items.isEmpty { print("  (nothing notable)") }
+        for (index, item) in category.items.enumerated() {
+            let date = item.publishedAt.map { " · " + $0.formatted(date: .abbreviated, time: .omitted) } ?? ""
+            print(String(format: "  %02d ", index + 1) + item.title)
+            print("     \(item.source)\(date) — \(item.url)")
+            if let relevance = item.relevance { print("     ↳ \(relevance)") }
+        }
+    }
+}
+
 func runHook(_ options: Options) throws {
     let installer = HookInstaller(paths: MorningPaths())
     switch options.argument ?? "status" {
@@ -295,6 +336,7 @@ do {
     case "context": try await runContext(options)
     case "list": runList(options)
     case "show": try runShow(options)
+    case "news": try await runNews(options)
     case "schedule": try await runSchedule(options)
     case "hook": try runHook(options)
     case "doctor": await runDoctor()
