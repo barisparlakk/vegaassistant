@@ -25,6 +25,10 @@ commands:
       --refresh                     search again now (one web-search run)
       --dry-run                     print the news prompt instead of searching
       --json                        print JSON
+  ask "<question>"
+              Ask Vega about your day (uses today's briefing and news)
+      --dry-run                     print the prompt instead of asking
+      --json                        print the answer and actions as JSON
   hook <install|uninstall|status|snippet>
               Claude Code Stop hook (merged into ~/.claude/settings.json with a backup)
   doctor      Check tools, permissions and paths
@@ -219,6 +223,32 @@ func runSchedule(_ options: Options) async throws {
     }
 }
 
+func runAsk(_ options: Options) async throws {
+    guard let text = options.argument?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+        throw CLIError(description: "usage: morning-cli ask \"what's left on thermground?\"")
+    }
+    let env = Environment(options: options)
+    let briefing = BriefingStore(paths: env.paths).latest()
+    let news = NewsStore(paths: env.paths).latest(onOrBefore: Briefing.id(for: .now))?.allItems ?? []
+    let first = NSFullUserName().split(separator: " ").first.map(String.init)
+    let question = VegaQuestion(text: text, briefing: briefing, news: news, userName: first)
+    if options.dryRun {
+        let prompt = AskVega.prompt(for: question)
+        print("=== SYSTEM\n\(prompt.system)\n\n=== USER\n\(prompt.user)\n\n=== SCHEMA\n\(prompt.schema)")
+        return
+    }
+    let answer = try await AskVega.ask(question, settings: env.settings, paths: env.paths)
+    if options.json {
+        FileHandle.standardOutput.write(try JSONCoding.prettyEncoder.encode(answer))
+        print()
+        return
+    }
+    print(answer.answer)
+    for action in answer.actions {
+        print("  → \(action.label) (\(action.kind.rawValue)\(action.target.map { ": \($0)" } ?? ""))")
+    }
+}
+
 func runNews(_ options: Options) async throws {
     let env = Environment(options: options)
     let id = Briefing.id(for: .now)
@@ -337,6 +367,7 @@ do {
     case "list": runList(options)
     case "show": try runShow(options)
     case "news": try await runNews(options)
+    case "ask": try await runAsk(options)
     case "schedule": try await runSchedule(options)
     case "hook": try runHook(options)
     case "doctor": await runDoctor()

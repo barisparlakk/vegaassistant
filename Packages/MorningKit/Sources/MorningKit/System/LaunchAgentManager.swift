@@ -90,6 +90,8 @@ public struct LaunchAgentManager: Sendable {
 /// How the CLI and the app talk: `morning://` URLs opened with `/usr/bin/open`.
 public enum AppHandoff {
     public static let scheme = "morning"
+    /// Both open the app: `morning://` (scheduler, notifications) and `vega://` (for you).
+    public static let schemes: Set<String> = ["morning", "vega"]
 
     /// Ask the app to generate (used when the scheduled helper lacks Calendar/Reminders access).
     public static func generateURL(trigger: Briefing.Trigger, ifNeeded: Bool) -> URL {
@@ -112,10 +114,12 @@ public enum AppHandoff {
         case generate(trigger: Briefing.Trigger, ifNeeded: Bool)
         case ready(id: String)
         case today
+        /// `vega://ask?q=…` — ask Vega a question.
+        case ask(String)
     }
 
     public static func parse(_ url: URL) -> Request? {
-        guard url.scheme == scheme else { return nil }
+        guard let scheme = url.scheme?.lowercased(), schemes.contains(scheme) else { return nil }
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
         switch url.host() {
@@ -125,6 +129,8 @@ public enum AppHandoff {
             return value("id").map { .ready(id: $0) }
         case "today", nil:
             return .today
+        case "ask":
+            return value("q").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : .ask($0) }
         default:
             return nil
         }

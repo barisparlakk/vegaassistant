@@ -53,8 +53,10 @@ targets:
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "15.0"
         NSHumanReadableCopyright: ""
-        NSCalendarsFullAccessUsageDescription: Morning reads today's events to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
-        NSRemindersFullAccessUsageDescription: Morning reads reminders due today to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
+        NSMicrophoneUsageDescription: Vega listens only after you press the microphone button, so you can ask her things out loud.
+        NSSpeechRecognitionUsageDescription: Vega turns what you say into text on your Mac. Your voice is not sent anywhere.
+        NSCalendarsFullAccessUsageDescription: Vega reads today's events to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
+        NSRemindersFullAccessUsageDescription: Vega reads reminders due today to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
         CFBundleURLTypes:
           - CFBundleURLName: com.barisparlak.Morning
             CFBundleURLSchemes: [morning, vega]

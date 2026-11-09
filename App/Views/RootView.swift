@@ -114,7 +114,8 @@ struct VegaPresence: View {
     }
 
     private var mood: AssistantCore.Mood {
-        if model.isGenerating { return .working }
+        if model.isGenerating || model.isThinking { return .working }
+        if model.listener.isListening { return .listening }
         if model.voice.isSpeaking { return .speaking }
         if model.focusBlock != nil { return .focus }
         return .idle
@@ -122,6 +123,8 @@ struct VegaPresence: View {
 
     private var status: String {
         if model.isGenerating { return "Preparing your briefing" }
+        if model.listener.isListening { return "Listening" }
+        if model.isThinking { return "Thinking" }
         switch model.voice.status {
         case .speaking: return "Speaking"
         case .paused: return "Paused"

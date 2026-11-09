@@ -25,6 +25,8 @@ protocol BriefingService: Sendable {
     func saveNewsState(_ state: NewsState) async
     /// Runs the news search now (one web-search run) and saves it as today's feed.
     func refreshNews() async throws -> NewsFeed
+    /// Answers a question about the day (one claude run).
+    func ask(_ question: VegaQuestion) async throws -> VegaAnswer
 }
 
 /// In-memory service with realistic data and a paced fake generation run.
@@ -123,6 +125,15 @@ actor MockBriefingService: BriefingService {
     func refreshNews() async throws -> NewsFeed {
         try await Task.sleep(for: .seconds(1.5))
         return MockData.news()
+    }
+
+    func ask(_ question: VegaQuestion) async throws -> VegaAnswer {
+        try await Task.sleep(for: .seconds(1.2))
+        let project = question.briefing?.facts.projects.first
+        return VegaAnswer(
+            answer: "Just the push: four commits are only on your Mac. Everything else is clean.",
+            actions: project.map { [VegaAction(kind: .openTerminal, label: "Open Terminal", target: $0.id)] } ?? []
+        )
     }
 
     func requestAccess(to kind: CollectorKind) async -> SystemStatus {

@@ -12,37 +12,49 @@ struct ConversationView: View {
 
     var body: some View {
         let voice = model.voice
-        let lines = voice.lines.isEmpty ? model.script(for: briefing, isToday: true) : voice.lines
-        let visible = voice.status == .idle ? lines.count : min(voice.currentLine + 1, lines.count)
+        let lines = model.todayLines.isEmpty ? model.script(for: briefing, isToday: true) : model.todayLines
+        // While she reads the briefing, lines appear as she reaches them.
+        let visible = model.isSpeakingScript ? min(voice.currentLine + 1, lines.count) : lines.count
 
+        // The ask bar is a sibling, not a child, of the conversation, so the conversation's
+        // keys (space, r, return) never see what you type into it.
+        ZStack(alignment: .bottom) {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.xl + DS.Space.xs) {
                     banner
-                    ForEach(Array(lines.prefix(max(visible, 1)).enumerated()), id: \.element.id) { index, line in
+                    ForEach(Array(lines.prefix(max(visible, 1))), id: \.id) { line in
                         VStack(alignment: .leading, spacing: DS.Space.m + DS.Space.xxs) {
-                            caption(line, isCurrent: voice.status != .idle && index == voice.currentLine, spoken: voice.spokenLength)
+                            caption(line)
                             attachment(for: line)
                         }
                         .id(line.id)
                         .transition(.opacity.combined(with: .offset(y: DS.Motion.offset * 2)))
                     }
-                    if voice.status == .idle {
+                    if !model.isSpeakingScript {
                         SourcesLine(briefing: briefing)
-                            .padding(.top, DS.Space.l)
+                        ForEach(model.exchanges) { exchange in
+                            ExchangeView(exchange: exchange, caption: caption)
+                                .id(exchange.id)
+                                .transition(.opacity.combined(with: .offset(y: DS.Motion.offset * 2)))
+                        }
                     }
+                    Color.clear.frame(height: 1).id(Self.bottom)
                 }
                 .animation(DS.Motion.standard, value: visible)
                 .padding(.horizontal, DS.Space.xxl + DS.Space.l)
                 .padding(.top, DS.Space.xxl)
-                .padding(.bottom, DS.Space.xxl * 2)
+                .padding(.bottom, DS.Size.askBarClearance)
                 .frame(maxWidth: DS.Size.conversationWidth, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollContentBackground(.hidden)
             .onChange(of: voice.currentLine) { _, index in
-                guard voice.status != .idle, lines.indices.contains(index) else { return }
+                guard model.isSpeakingScript, lines.indices.contains(index) else { return }
                 withAnimation(DS.Motion.standard) { proxy.scrollTo(lines[index].id, anchor: .center) }
+            }
+            .onChange(of: model.exchanges) {
+                withAnimation(DS.Motion.standard) { proxy.scrollTo(Self.bottom, anchor: .bottom) }
             }
         }
         .focusable()
@@ -58,31 +70,48 @@ struct ConversationView: View {
         .onChange(of: voice.status) { _, status in
             if status == .idle { model.presentToday(briefing) }
         }
+        // These keys belong to the conversation only; while the ask bar has focus they're text.
         .onKeyPress(.space) {
+            guard isFocused else { return .ignored }
             if voice.status == .idle { model.speakAgain(briefing) } else { voice.togglePause() }
             return .handled
         }
-        .onKeyPress(.escape) { voice.stop(); return .handled }
-        .onKeyPress("r") { model.speakAgain(briefing); return .handled }
+        .onKeyPress(.escape) {
+            voice.stop()
+            model.listener.cancel()
+            isFocused = true
+            return .handled
+        }
+        .onKeyPress("r") {
+            guard isFocused else { return .ignored }
+            model.speakAgain(briefing)
+            return .handled
+        }
         .onKeyPress(.return) {
-            guard let generated = briefing.structured,
+            guard isFocused, let generated = briefing.structured,
                   let next = generated.focus.tasks.first(where: { !model.isChecked($0, in: briefing.id) && !model.isSkipped($0, in: briefing.id) })
             else { return .ignored }
             model.startBlock(next, in: briefing.id)
             return .handled
         }
+
+        AskBar()
+        }
     }
+
+    private static let bottom = "conversation-bottom"
 
     // MARK: Lines
 
     /// The line's text; while it's being said, the part still to come is dimmed.
-    private func caption(_ line: VegaLine, isCurrent: Bool, spoken: Int) -> some View {
+    private func caption(_ line: VegaLine) -> some View {
+        let voice = model.voice
         var text = AttributedString(line.text)
-        if isCurrent {
+        if voice.currentLineID == line.id {
             let length = (line.text as NSString).length
-            let cut = min(max(spoken, 0), length)
+            let cut = min(max(voice.spokenLength, 0), length)
             let upcoming = (line.text as NSString).substring(from: cut)
-            if let range = text.range(of: upcoming, options: .backwards) {
+            if !upcoming.isEmpty, let range = text.range(of: upcoming, options: .backwards) {
                 text[range].foregroundColor = DS.Color.dim
             }
         }
@@ -155,5 +184,179 @@ struct ConversationWaiting: View {
         .padding(.top, DS.Space.xxl)
         .frame(maxWidth: DS.Size.conversationWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Exchanges
+
+/// Your question (right) and Vega's answer with her action buttons.
+private struct ExchangeView<Caption: View>: View {
+    @Environment(AppModel.self) private var model
+    let exchange: AppModel.Exchange
+    let caption: (VegaLine) -> Caption
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.m) {
+            Text(exchange.question)
+                .font(DS.Font.body.leading(.loose))
+                .foregroundStyle(DS.Color.text)
+                .padding(.horizontal, DS.Space.l)
+                .padding(.vertical, DS.Space.s + DS.Space.xxs)
+                .background(DS.Color.selected, in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: 18, bottomTrailingRadius: 5, topTrailingRadius: 18, style: .continuous))
+                .frame(maxWidth: DS.Size.conversationWidth * 0.6, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .textSelection(.enabled)
+
+            if let answer = exchange.answer {
+                caption(VegaLine(id: exchange.lineID, text: answer.answer))
+                if !answer.actions.isEmpty {
+                    HStack(spacing: DS.Space.s) {
+                        ForEach(answer.actions, id: \.self) { action in
+                            Button(action.label) { model.perform(action) }
+                                .buttonStyle(.vegaPill)
+                                .help(help(for: action))
+                        }
+                    }
+                }
+            } else if let error = exchange.error {
+                HStack(spacing: DS.Space.s) {
+                    Text(error == "Stopped." ? "Stopped." : "I couldn't answer that: \(error)")
+                        .font(DS.Font.small)
+                        .foregroundStyle(DS.Color.failed)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Try again") { model.retry(exchange) }
+                        .buttonStyle(.vegaPill)
+                }
+            } else {
+                HStack(spacing: DS.Space.m) {
+                    ThinkingDots()
+                    Button("Stop") { model.stopAsking() }
+                        .buttonStyle(.vegaPill)
+                }
+            }
+        }
+    }
+
+    private func help(for action: VegaAction) -> String {
+        switch action.kind {
+        case .openTerminal: "Open the project in Terminal"
+        case .openEditor: "Open the project in your editor"
+        case .openURL: action.target ?? "Open the link"
+        case .startFocus: "Start a focus block on this task"
+        case .show: "Go to \(action.target ?? "")"
+        case .regenerate: "Rebuild today's briefing"
+        }
+    }
+}
+
+/// Three dots that breathe while Vega thinks.
+private struct ThinkingDots: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 6) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(.tint)
+                        .frame(width: 7, height: 7)
+                        .opacity(0.3 + 0.7 * max(0, sin(time * 4 - Double(index) * 0.7)))
+                }
+                Text("Thinking")
+                    .font(DS.Font.small)
+                    .foregroundStyle(DS.Color.dim)
+                    .padding(.leading, DS.Space.xs)
+            }
+        }
+        .accessibilityLabel("Vega is thinking")
+    }
+}
+
+// MARK: - Ask bar
+
+/// "Ask Vega anything…": type and press Return, or press the mic and talk.
+struct AskBar: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.accent) private var accent
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        let listener = model.listener
+        VStack(spacing: DS.Space.xs) {
+            if case let .unavailable(reason) = listener.status {
+                Text(reason)
+                    .font(DS.Font.small)
+                    .foregroundStyle(DS.Color.failed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DS.Space.l)
+            }
+            HStack(spacing: DS.Space.m) {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Color.accentInk(accent))
+                ZStack(alignment: .leading) {
+                    if listener.isListening {
+                        Text(listener.transcript.isEmpty ? "Listening…" : listener.transcript)
+                            .font(DS.Font.vegaAsk)
+                            .foregroundStyle(listener.transcript.isEmpty ? DS.Color.dim : DS.Color.heading)
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        TextField("Ask Vega anything…", text: $text)
+                            .textFieldStyle(.plain)
+                            .font(DS.Font.vegaAsk)
+                            .focused($isFocused)
+                            .onSubmit(send)
+                            .disabled(model.isThinking)
+                    }
+                }
+                Text(listener.isListening ? "pause to send" : "⌘K")
+                    .font(DS.Font.key)
+                    .foregroundStyle(DS.Color.dim)
+                Button(action: model.listen) {
+                    Image(systemName: listener.isListening ? "waveform" : "mic.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .symbolEffect(.variableColor.iterative, isActive: listener.isListening)
+                        .foregroundStyle(Color(hex: 0x0B0A12))
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(accent))
+                        .shadow(color: accent.opacity(listener.isListening ? 0.6 : 0.3), radius: listener.isListening ? 12 : 6)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("k", modifiers: [.command, .shift])
+                .help(listener.isListening ? "Stop listening" : "Talk to Vega (⇧⌘K)")
+                .disabled(model.isThinking)
+            }
+            .padding(.leading, DS.Space.l + DS.Space.xxs)
+            .padding(.trailing, DS.Space.s)
+            .padding(.vertical, DS.Space.s)
+            .background(Capsule().fill(DS.Color.panel))
+            .overlay(Capsule().strokeBorder(listener.isListening ? accent.opacity(0.7) : DS.Color.border, lineWidth: listener.isListening ? 1.5 : DS.Size.hairline))
+            .shadow(color: DS.Color.shadow, radius: 18, y: 8)
+        }
+        .padding(.horizontal, DS.Space.xxl + DS.Space.l)
+        .padding(.top, DS.Space.s)
+        .padding(.bottom, DS.Space.l + DS.Space.xs)
+        .frame(maxWidth: DS.Size.conversationWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(alignment: .top) {
+            LinearGradient(colors: [DS.Color.background.opacity(0), DS.Color.background], startPoint: .top, endPoint: .center)
+                .allowsHitTesting(false)
+        }
+        .background {
+            // ⌘K focuses the field.
+            Button("Ask Vega") { isFocused = true }
+                .keyboardShortcut("k", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+        .animation(DS.Motion.standard, value: listener.status)
+    }
+
+    private func send() {
+        let question = text
+        text = ""
+        model.ask(question)
     }
 }

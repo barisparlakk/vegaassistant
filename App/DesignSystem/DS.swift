@@ -41,6 +41,8 @@ enum DS {
         static let orb: CGFloat = 250
         static let waveform: CGFloat = 26
         static let conversationWidth: CGFloat = 820
+        /// Room under the conversation for the floating ask bar.
+        static let askBarClearance: CGFloat = 120
         static let brandOrb: CGFloat = 20
         static let newsColumn: CGFloat = 360
         static let twoColumnMin: CGFloat = 720
@@ -178,6 +180,7 @@ enum DS {
         // Vega speaking
         static let vegaOpening = SwiftUI.Font.system(size: 26, weight: .medium)
         static let vegaLine = SwiftUI.Font.system(size: 19, weight: .regular)
+        static let vegaAsk = SwiftUI.Font.system(size: 16, weight: .regular)
 
         static let priorityTitle = sans(30, .semibold)
         static let menuTitle = sans(17, .semibold)

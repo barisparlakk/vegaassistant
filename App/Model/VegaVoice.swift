@@ -20,6 +20,11 @@ final class VegaVoice: NSObject {
 
     var isSpeaking: Bool { status == .speaking }
 
+    /// The id of the line being spoken right now, if any.
+    var currentLineID: String? {
+        status != .idle && lines.indices.contains(currentLine) ? lines[currentLine].id : nil
+    }
+
     @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
     @ObservationIgnored private var utterances: [ObjectIdentifier: Int] = [:]
 

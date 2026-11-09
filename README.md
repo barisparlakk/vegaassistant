@@ -79,7 +79,8 @@ and regenerate the project.
 | Desktop / Documents folder | Your repositories may live there (Vega scans `~/dev`, `~/Developer`, `~/Projects` and `~/Desktop` by default) | The first time Vega scans those folders |
 | Calendar | Today's events for the agenda | First generation, or *Allow access…* on the Today screen / in Settings |
 | Reminders | Reminders due today or overdue | Same as Calendar |
-| Notifications | "Your morning briefing is ready" | When you install the scheduler, or in Settings |
+| Notifications | "Vega: your briefing is ready" | When you install the scheduler, or in Settings |
+| Microphone and Speech Recognition | Talking to Vega instead of typing | The first time you press the microphone |
 
 Everything is optional. A source that isn't available is shown as *not connected* — the briefing says it doesn't know, rather than pretending your day is empty. Manage permissions later in System Settings › Privacy & Security.
 
@@ -151,12 +152,21 @@ The entry only works if the script exists at that path. `morning-cli hook instal
 | Where | Keys |
 |---|---|
 | Everywhere | `⌘1` today · `⌘2` history · `⌘3` projects · `⌘4` news · `⌘,` settings · `⌘R` regenerate |
-| Today | `space` pause / resume / play the briefing · `r` replay · `esc` stop and show everything · `↵` start a focus block on the next task |
+| Today | `space` pause / resume / play the briefing · `r` replay · `esc` stop and show everything · `↵` start a focus block on the next task · `⌘K` ask Vega · `⇧⌘K` talk to Vega |
 | Projects | `j`/`k` move · `↵` details · `/` filter · `t` `e` `g` open · `esc` close details |
 | History | `j`/`k` move between days |
 | News | `j`/`k` move · `↵` open (marks read) · `s` save · `←`/`→` or `1`–`9` categories · `r` refresh |
 
 Focus blocks and skipped tasks are kept in the app only; checked tasks are stored with the briefing day.
+
+## Ask Vega
+
+Type in the bar at the bottom of Today (`⌘K`), or press the microphone (`⇧⌘K`) and just talk: Vega stops listening when you pause, then answers out loud in a sentence or three, with up to three buttons when she can help (open a project in Terminal or your editor, open a link, start a focus block, go to a view, regenerate).
+
+- **How it works:** one headless `claude -p` run on your subscription, like the briefing. It gets today's briefing, the facts behind it (the 40 newest commits, no raw hook log), today's news and your earlier questions today. Its only tool is web search, for questions that need current information. Answers usually take 5–15 seconds; a run that hasn't answered after 45 seconds is retried once. Buttons are checked against your real projects, tasks and links before they're shown.
+- **Voice input** uses Apple's speech recognition, on the device when your Mac supports it. Vega listens only after you press the microphone, and asks for Microphone and Speech Recognition permission the first time.
+- **From anywhere:** `open "vega://ask?q=what's left on thermground?"` (Raycast, Shortcuts, Terminal), or `morning-cli ask "…"` for a text answer in the terminal.
+- Questions and answers are kept in memory for the day only.
 
 ## News
 

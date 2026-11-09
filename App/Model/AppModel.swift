@@ -140,6 +140,10 @@ final class AppModel {
         case .today:
             selection = .today
             NSApp.activate()
+        case let .ask(question):
+            selection = .today
+            NSApp.activate()
+            ask(question)
         case nil:
             break
         }
@@ -355,23 +359,31 @@ final class AppModel {
         VegaScript.lines(for: briefing, news: newsPreview(for: briefing.id), isToday: isToday)
     }
 
+    /// What Vega says about today, shown in the conversation (spoken or not).
+    private(set) var todayLines: [VegaLine] = []
+
+    /// True while she's reading the briefing script (not an answer).
+    var isSpeakingScript: Bool {
+        voice.status != .idle && voice.lines.first?.id == todayLines.first?.id
+    }
+
     /// Speaks today's briefing the first time it's opened (once per briefing), or shows it.
     /// Later calls for the same briefing (news arriving, a regenerate) refresh the lines
     /// without interrupting her.
     func presentToday(_ briefing: Briefing) {
         let lines = script(for: briefing, isToday: true)
         if presentedBriefingID == briefing.id {
-            if voice.status == .idle, voice.lines != lines { voice.speak(lines, silently: true) }
+            if !isSpeakingScript, todayLines != lines { todayLines = lines }
             return
         }
+        if presentedBriefingID != nil { exchanges = [] } // a new day starts a new conversation
         presentedBriefingID = briefing.id
+        todayLines = lines
         let alreadySpoken = UserDefaults.standard.string(forKey: Self.spokenKey) == briefing.id
         if !alreadySpoken, speaksOnOpen, !isMuted {
             UserDefaults.standard.set(briefing.id, forKey: Self.spokenKey)
             sounds.play(.wake)
             voice.speak(lines)
-        } else {
-            voice.speak(lines, silently: true)
         }
     }
 
@@ -380,8 +392,123 @@ final class AppModel {
     /// Plays today's briefing from the top (the Replay button).
     func speakAgain(_ briefing: Briefing) {
         if isMuted { isMuted = false }
+        listener.cancel()
+        todayLines = script(for: briefing, isToday: true)
         sounds.play(.wake)
-        voice.speak(script(for: briefing, isToday: true))
+        voice.speak(todayLines)
+    }
+
+    // MARK: Ask Vega
+
+    /// One question and Vega's answer.
+    struct Exchange: Identifiable, Equatable {
+        let id = UUID()
+        let question: String
+        var answer: VegaAnswer?
+        var error: String?
+
+        var isThinking: Bool { answer == nil && error == nil }
+        var lineID: String { "answer-\(id.uuidString)" }
+    }
+
+    /// Today's questions and answers, oldest first (kept in memory for the day).
+    private(set) var exchanges: [Exchange] = []
+    let listener = VegaListener()
+    var isThinking: Bool { exchanges.contains(where: \.isThinking) }
+
+    /// Listens for a spoken question, then asks it.
+    func listen() {
+        if listener.isListening {
+            listener.stop()
+            return
+        }
+        voice.stop()
+        sounds.play(.wake)
+        listener.start { [weak self] text in
+            guard let self, !text.isEmpty else { return }
+            self.ask(text)
+        }
+    }
+
+    func ask(_ text: String) {
+        let question = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !isThinking else { return }
+        voice.stop()
+        let exchange = Exchange(question: question)
+        withAnimation(DS.Motion.standard) { exchanges.append(exchange) }
+
+        let briefing = currentBriefing
+        let checked = briefing?.structured?.focus.tasks.filter { isChecked($0, in: briefing?.id ?? "") }.map(\.id) ?? []
+        let request = VegaQuestion(
+            text: question,
+            briefing: briefing,
+            news: briefing.flatMap { newsFeeds[$0.id]?.allItems } ?? [],
+            history: exchanges.compactMap { item in item.answer.map { VegaExchangeRecord(question: item.question, answer: $0.answer) } },
+            userName: NSFullUserName().split(separator: " ").first.map(String.init),
+            focusBlock: focusBlock?.title,
+            checkedTaskIDs: checked
+        )
+        let service = service
+        askTask = Task {
+            do {
+                let answer: VegaAnswer
+                do {
+                    answer = try await service.ask(request)
+                } catch ClaudeError.timedOut {
+                    // A stuck start is usually a one-off; try once more before giving up.
+                    try Task.checkCancellation()
+                    answer = try await service.ask(request)
+                }
+                try Task.checkCancellation()
+                update(exchange.id) { $0.answer = answer }
+                if !isMuted {
+                    voice.speak([VegaLine(id: exchange.lineID, text: answer.answer)])
+                }
+            } catch is CancellationError {
+                update(exchange.id) { $0.error = "Stopped." }
+            } catch {
+                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                update(exchange.id) { $0.error = Task.isCancelled ? "Stopped." : message }
+            }
+            askTask = nil
+        }
+    }
+
+    @ObservationIgnored private var askTask: Task<Void, Never>?
+
+    /// Stops waiting for an answer.
+    func stopAsking() {
+        askTask?.cancel()
+    }
+
+    /// Asks a failed question again.
+    func retry(_ exchange: Exchange) {
+        exchanges.removeAll { $0.id == exchange.id }
+        ask(exchange.question)
+    }
+
+    private func update(_ id: UUID, _ change: (inout Exchange) -> Void) {
+        guard let index = exchanges.firstIndex(where: { $0.id == id }) else { return }
+        withAnimation(DS.Motion.standard) { change(&exchanges[index]) }
+    }
+
+    /// Does what one of Vega's action buttons offers.
+    func perform(_ action: VegaAction) {
+        let briefing = currentBriefing
+        let project = briefing?.facts.projects.first { $0.id == action.target }
+        switch action.kind {
+        case .openTerminal: Opener.terminal(project?.path)
+        case .openEditor: Opener.editor(project?.path)
+        case .openURL: Opener.url(action.target)
+        case .startFocus:
+            if let briefing, let task = briefing.structured?.focus.tasks.first(where: { $0.id == action.target }) {
+                startBlock(task, in: briefing.id)
+            }
+        case .show:
+            if let target = action.target, let item = SidebarItem(rawValue: target) { selection = item }
+        case .regenerate:
+            regenerate()
+        }
     }
 
     func stopBlock() {

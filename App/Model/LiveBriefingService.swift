@@ -66,6 +66,10 @@ struct LiveBriefingService: BriefingService {
         try await NewsGenerator(settings: settingsStore.load(), paths: paths).refresh()
     }
 
+    func ask(_ question: VegaQuestion) async throws -> VegaAnswer {
+        try await AskVega.ask(question, settings: settingsStore.load(), paths: paths)
+    }
+
     func newsState() async -> NewsState {
         NewsStore(paths: paths).loadState()
     }
