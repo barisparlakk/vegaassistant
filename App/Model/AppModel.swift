@@ -154,6 +154,8 @@ final class AppModel {
             today = .empty
         }
         history = await service.summaries()
+        newsState = await service.newsState()
+        await loadNews(for: currentBriefing?.id ?? Briefing.id(for: .now))
     }
 
     /// True when the newest briefing is from an earlier day.
@@ -170,6 +172,7 @@ final class AppModel {
         }
         let briefing = await service.briefing(id: id)
         if let briefing { checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id) }
+        await loadNews(for: id)
         guard selectedHistoryID == id else { return }
         withAnimation(Motion.gentle) { historyBriefing = briefing }
     }
@@ -194,6 +197,7 @@ final class AppModel {
                 checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id)
                 history = await service.summaries()
                 if selectedHistoryID == briefing.id { historyBriefing = briefing }
+                await loadNews(for: briefing.id)
                 withAnimation(Motion.spring) {
                     today = .loaded(briefing)
                     generation = nil
@@ -223,6 +227,111 @@ final class AppModel {
     private func notificationStatus() async -> Bool? {
         guard service is LiveBriefingService else { return system.notificationsAllowed }
         return await Notifier.shared.authorizationStatus()
+    }
+
+    // MARK: News
+
+    var newsFeeds: [String: NewsFeed] = [:]
+    var newsState = NewsState()
+
+    func loadNews(for briefingID: String) async {
+        newsFeeds[briefingID] = await service.news(for: briefingID)
+    }
+
+    /// Top three for the Today preview: stories tied to a project first, then one per category.
+    func newsPreview(for briefingID: String) -> [NewsItem] {
+        guard settings.newsEnabled, let feed = newsFeeds[briefingID] else { return [] }
+        let related = feed.allItems.filter { $0.relevance != nil }
+        let firsts = feed.categories.compactMap(\.items.first)
+        return Array((related + firsts + feed.allItems).uniqued(by: \.id).prefix(3))
+    }
+
+    func isRead(_ item: NewsItem) -> Bool { newsState.read.contains(item.id) }
+    func isSaved(_ item: NewsItem) -> Bool { newsState.saved[item.id] != nil }
+
+    func openNews(_ item: NewsItem) {
+        Opener.url(item.url)
+        guard !isRead(item) else { return }
+        withAnimation(DS.Motion.fast) { _ = newsState.read.insert(item.id) }
+        persistNewsState()
+    }
+
+    func toggleSaved(_ item: NewsItem) {
+        withAnimation(DS.Motion.fast) {
+            if isSaved(item) { newsState.saved[item.id] = nil } else { newsState.saved[item.id] = item }
+        }
+        persistNewsState()
+    }
+
+    private func persistNewsState() {
+        let state = newsState
+        let service = service
+        Task { await service.saveNewsState(state) }
+    }
+
+    // MARK: Focus blocks & skips (app-local)
+
+    /// A timed focus block on one task, shown in the status bar. Kept in UserDefaults:
+    /// it's a UI convenience, not part of the briefing.
+    struct FocusBlock: Codable, Equatable {
+        var briefingID: String
+        var taskKey: String
+        var title: String
+        var startedAt: Date
+    }
+
+    var focusBlock: FocusBlock? = AppModel.storedBlock() {
+        didSet { AppModel.store(focusBlock, key: Self.blockKey) }
+    }
+
+    private(set) var skippedKeys: [String: Set<String>] = AppModel.storedSkips() {
+        didSet { AppModel.store(skippedKeys.mapValues { $0.sorted() }, key: Self.skipsKey) }
+    }
+
+    func startBlock(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
+        withAnimation(DS.Motion.fast) {
+            if focusBlock?.taskKey == task.checkKey { focusBlock = nil; return }
+            // Done or skipped tasks don't get a block.
+            guard !isChecked(task, in: briefingID), !isSkipped(task, in: briefingID) else { return }
+            focusBlock = FocusBlock(briefingID: briefingID, taskKey: task.checkKey, title: task.title, startedAt: .now)
+        }
+    }
+
+    func stopBlock() {
+        withAnimation(DS.Motion.fast) { focusBlock = nil }
+    }
+
+    func isSkipped(_ task: GeneratedBriefing.FocusTask, in briefingID: String) -> Bool {
+        skippedKeys[briefingID]?.contains(task.checkKey) ?? false
+    }
+
+    func toggleSkip(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
+        withAnimation(DS.Motion.fast) {
+            if isSkipped(task, in: briefingID) {
+                skippedKeys[briefingID]?.remove(task.checkKey)
+            } else {
+                skippedKeys[briefingID, default: []].insert(task.checkKey)
+                if focusBlock?.taskKey == task.checkKey { focusBlock = nil }
+            }
+        }
+    }
+
+    private static let blockKey = "focusBlock"
+    private static let skipsKey = "skippedTasks"
+
+    private static func storedBlock() -> FocusBlock? {
+        UserDefaults.standard.data(forKey: blockKey).flatMap { try? JSONDecoder().decode(FocusBlock.self, from: $0) }
+    }
+
+    private static func storedSkips() -> [String: Set<String>] {
+        guard let data = UserDefaults.standard.data(forKey: skipsKey),
+              let value = try? JSONDecoder().decode([String: [String]].self, from: data)
+        else { return [:] }
+        return value.mapValues(Set.init)
+    }
+
+    private static func store(_ value: some Encodable, key: String) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(value), forKey: key)
     }
 
     // MARK: Tasks
@@ -380,6 +489,10 @@ extension AppModel {
         model.checkedKeys[MockData.briefing().id] = [MockData.generated.focus.tasks[1].checkKey]
         if generating { model.generation = .preview }
         model.system = .preview
+        if scenario != .empty {
+            model.newsFeeds[MockData.briefing().id] = MockData.news()
+            model.newsState = NewsState(read: ["n3"])
+        }
         return model
     }
 }

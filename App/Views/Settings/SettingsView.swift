@@ -16,7 +16,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(BriefingBackdrop())
+        .background(ConsoleBackdrop())
         .navigationTitle("Settings")
         .alert("Couldn't change that", isPresented: Binding(
             get: { model.settingsError != nil },

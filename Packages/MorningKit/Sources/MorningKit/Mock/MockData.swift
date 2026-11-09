@@ -264,3 +264,28 @@ public enum MockData {
         calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
     }
 }
+
+// MARK: - News
+
+extension MockData {
+    public static func news(now: Date = .now) -> NewsFeed {
+        func ago(_ hours: Double) -> Date { now.addingTimeInterval(-hours * 3600) }
+        return NewsFeed(generatedAt: now.addingTimeInterval(-600), categories: [
+            NewsCategory(id: "ai-tech", label: "ai+tech", items: [
+                NewsItem(id: "n1", title: "MLX adds fused attention kernels for Qwen-VL models", summary: "Apple's MLX release brings faster vision-language inference on M-series chips, with up to 1.8× throughput on 2B–4B models.", relevance: "thermground runs Qwen3-VL through MLX — worth re-running the val-mini timing.", source: "github.com/ml-explore", url: "https://github.com/ml-explore/mlx/releases", publishedAt: ago(5)),
+                NewsItem(id: "n2", title: "Next.js 16.1 ships stable partial prerendering", summary: "Static shells with streamed dynamic holes are now stable, alongside faster dev startup and a smaller client runtime.", relevance: "daybase is a Next.js app; PPR could speed up the Today screen.", source: "nextjs.org", url: "https://nextjs.org/blog", publishedAt: ago(9)),
+                NewsItem(id: "n3", title: "GitHub Actions adds native arm64 macOS runners to the free tier", summary: "Public repositories get Apple-silicon runners at no cost, with larger runners in preview for private repos.", source: "github.blog", url: "https://github.blog/changelog", publishedAt: ago(20)),
+            ]),
+            NewsCategory(id: "research", label: "research", items: [
+                NewsItem(id: "n4", title: "Zero-shot thermal grounding with vision-language models", summary: "A new arXiv preprint benchmarks VLMs on thermal imagery and finds box-format prompting matters more than model size.", relevance: "Directly related to thermground's zero-shot week 3 analysis.", source: "arxiv.org · cs.CV", url: "https://arxiv.org/list/cs.CV/recent", publishedAt: ago(14)),
+                NewsItem(id: "n5", title: "Sparse mixture-of-experts scaling laws revisited", summary: "Authors show active-parameter count predicts downstream accuracy better than total parameters across 40 models.", source: "arxiv.org · cs.LG", url: "https://arxiv.org/list/cs.LG/recent", publishedAt: ago(26)),
+            ]),
+            NewsCategory(id: "turkiye", label: "türkiye", items: [
+                NewsItem(id: "n6", title: "TÜBİTAK opens 2027 call for AI research grants", summary: "The program funds university–industry projects in applied AI, with applications open until January.", source: "tubitak.gov.tr", url: "https://tubitak.gov.tr", publishedAt: ago(11)),
+            ]),
+            NewsCategory(id: "science", label: "science", items: [
+                NewsItem(id: "n7", title: "Webb confirms water vapour on a temperate super-Earth", summary: "Spectra from two transits show a clear water signature in the planet's atmosphere.", source: "nasa.gov", url: "https://science.nasa.gov", publishedAt: ago(30)),
+            ]),
+        ])
+    }
+}

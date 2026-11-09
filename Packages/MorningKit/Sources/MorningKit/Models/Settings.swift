@@ -53,6 +53,9 @@ public struct MorningSettings: Codable, Sendable, Hashable {
     public var accentColorHex: String?
     /// Optional deadlines per project id (`repo:daybase` → date), shown as `T-18d`.
     public var projectDeadlines: [String: Date]
+    public var newsEnabled: Bool
+    public var newsTopics: [NewsTopic]
+    public var newsItemsPerCategory: Int
 
     public static let `default` = MorningSettings()
 
@@ -73,7 +76,10 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         staleBranchDays: Int = 14,
         maxLookbackDays: Int = 4,
         accentColorHex: String? = nil,
-        projectDeadlines: [String: Date] = [:]
+        projectDeadlines: [String: Date] = [:],
+        newsEnabled: Bool = true,
+        newsTopics: [NewsTopic] = NewsTopic.defaults,
+        newsItemsPerCategory: Int = 5
     ) {
         self.repoRoots = repoRoots
         self.scanDepth = scanDepth
@@ -92,6 +98,9 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         self.maxLookbackDays = maxLookbackDays
         self.accentColorHex = accentColorHex
         self.projectDeadlines = projectDeadlines
+        self.newsEnabled = newsEnabled
+        self.newsTopics = newsTopics
+        self.newsItemsPerCategory = newsItemsPerCategory
     }
 
     public init(from decoder: any Decoder) throws {
@@ -116,6 +125,9 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         maxLookbackDays = try c.decodeIfPresent(Int.self, forKey: .maxLookbackDays) ?? d.maxLookbackDays
         accentColorHex = try c.decodeIfPresent(String.self, forKey: .accentColorHex)
         projectDeadlines = try c.decodeIfPresent([String: Date].self, forKey: .projectDeadlines) ?? [:]
+        newsEnabled = try c.decodeIfPresent(Bool.self, forKey: .newsEnabled) ?? d.newsEnabled
+        newsTopics = try c.decodeIfPresent([NewsTopic].self, forKey: .newsTopics) ?? d.newsTopics
+        newsItemsPerCategory = try c.decodeIfPresent(Int.self, forKey: .newsItemsPerCategory) ?? d.newsItemsPerCategory
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -137,12 +149,16 @@ public struct MorningSettings: Codable, Sendable, Hashable {
         try c.encode(maxLookbackDays, forKey: .maxLookbackDays)
         try c.encodeIfPresent(accentColorHex, forKey: .accentColorHex)
         try c.encode(projectDeadlines, forKey: .projectDeadlines)
+        try c.encode(newsEnabled, forKey: .newsEnabled)
+        try c.encode(newsTopics, forKey: .newsTopics)
+        try c.encode(newsItemsPerCategory, forKey: .newsItemsPerCategory)
     }
 
     private enum CodingKeys: String, CodingKey {
         case repoRoots, scanDepth, discoverFromClaudeSessions, briefingHour, briefingMinute
         case enabledCollectors, calendarIDs, reminderListIDs, claudeModel, claudePath, gitPath, ghPath
         case extraInstructions, staleBranchDays, maxLookbackDays, accentColorHex, projectDeadlines
+        case newsEnabled, newsTopics, newsItemsPerCategory
     }
 
     public func isEnabled(_ kind: CollectorKind) -> Bool { enabledCollectors.contains(kind) }

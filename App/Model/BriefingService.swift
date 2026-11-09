@@ -19,6 +19,10 @@ protocol BriefingService: Sendable {
     func setHook(installed: Bool) async throws
     /// Re-points the scheduler at this copy of the app if it was moved.
     func repairLaunchAgentIfNeeded(hour: Int, minute: Int) async
+    /// The news feed for a day (or the newest one before it).
+    func news(for briefingID: String) async -> NewsFeed?
+    func newsState() async -> NewsState
+    func saveNewsState(_ state: NewsState) async
 }
 
 /// In-memory service with realistic data and a paced fake generation run.
@@ -103,6 +107,16 @@ actor MockBriefingService: BriefingService {
     }
 
     func repairLaunchAgentIfNeeded(hour: Int, minute: Int) async {}
+
+    private var news = NewsState(read: ["n3"])
+
+    func news(for briefingID: String) async -> NewsFeed? {
+        scenario == .empty ? nil : MockData.news()
+    }
+
+    func newsState() async -> NewsState { news }
+
+    func saveNewsState(_ state: NewsState) async { news = state }
 
     func requestAccess(to kind: CollectorKind) async -> SystemStatus {
         if kind == .calendar { status.calendarAccess = .granted }

@@ -76,7 +76,7 @@ extension String {
 
 extension Array {
     /// Keeps the first occurrence of every key, preserving order.
-    func uniqued<Key: Hashable>(by key: (Element) -> Key) -> [Element] {
+    public func uniqued<Key: Hashable>(by key: (Element) -> Key) -> [Element] {
         var seen = Set<Key>()
         return filter { seen.insert(key($0)).inserted }
     }

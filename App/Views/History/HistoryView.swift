@@ -33,11 +33,11 @@ struct HistoryView: View {
 
     @ViewBuilder private var detail: some View {
         if let briefing = model.historyBriefing {
-            BriefingView(briefing: briefing, isToday: briefing.id == Briefing.id(for: .now))
+            BriefingConsole(briefing: briefing, isToday: false)
                 .id(briefing.id)
                 .transition(.opacity)
         } else {
-            SkeletonBriefing()
+            TodaySkeleton()
         }
     }
 }

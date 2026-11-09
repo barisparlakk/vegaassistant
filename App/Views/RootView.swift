@@ -239,6 +239,21 @@ struct StatusBar: View {
 
     @ViewBuilder private var status: some View {
         HStack(spacing: DS.Space.s) {
+            if let block = model.focusBlock, !model.isGenerating {
+                Button(action: model.stopBlock) {
+                    TimelineView(.periodic(from: block.startedAt, by: 1)) { context in
+                        Text("block \(Format.clock(context.date.timeIntervalSince(block.startedAt))) · \(block.title.lowercased())")
+                            .font(DS.Font.meta)
+                            .foregroundStyle(DS.Color.accentInk(accent))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: 280, alignment: .trailing)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Stop the focus block")
+                Text("·").font(DS.Font.meta).foregroundStyle(DS.Color.dim)
+            }
             if let generation = model.generation {
                 GlowDot(color: accent)
                     .skeletonPulse()

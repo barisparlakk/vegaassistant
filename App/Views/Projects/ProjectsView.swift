@@ -35,7 +35,7 @@ struct ProjectsView: View {
                     }
                     .padding(Spacing.xxl)
                 }
-                .background(BriefingBackdrop())
+                .background(ConsoleBackdrop())
                 .inspector(isPresented: Binding(get: { selectedID != nil }, set: { if !$0 { selectedID = nil } })) {
                     if let project = facts.project(selectedID) {
                         ProjectDetail(project: project, facts: facts)

@@ -58,6 +58,18 @@ struct LiveBriefingService: BriefingService {
         try? await manager.install(executable: helper, hour: hour, minute: minute)
     }
 
+    func news(for briefingID: String) async -> NewsFeed? {
+        NewsStore(paths: paths).latest(onOrBefore: briefingID)
+    }
+
+    func newsState() async -> NewsState {
+        NewsStore(paths: paths).loadState()
+    }
+
+    func saveNewsState(_ state: NewsState) async {
+        try? NewsStore(paths: paths).saveState(state)
+    }
+
     func checkedKeys(for briefingID: String) async -> Set<String> {
         checks.checkedKeys(for: briefingID)
     }
