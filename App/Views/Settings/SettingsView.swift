@@ -303,7 +303,7 @@ private struct ClaudeSettings: View {
                 .textFieldStyle(.plain)
                 .font(DS.Font.meta)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: DS.Size.pathFieldWidth)
                 .onSubmit(model.refreshSystemStatus)
             }
             RowDivider()

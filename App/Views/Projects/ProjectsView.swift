@@ -44,7 +44,7 @@ struct ProjectsView: View {
                 }
                 .padding(.horizontal, DS.Space.m)
                 .padding(.vertical, DS.Space.s - DS.Space.xxs)
-                .frame(maxWidth: 280)
+                .frame(maxWidth: DS.Size.filterFieldWidth)
                 .background(DS.Color.panel, in: RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
@@ -140,7 +140,7 @@ struct ProjectsView: View {
     }
 
     func sparklineWidth(compact: Bool) -> CGFloat {
-        compact ? DS.Size.sparkline.width * 0.6 : DS.Size.sparkline.width
+        compact ? DS.Size.sparklineCompactWidth : DS.Size.sparkline.width
     }
 
     private func filtered(_ projects: [ProjectFact]) -> [ProjectFact] {
@@ -186,7 +186,7 @@ struct ProjectTableRow: View {
                 .font(DS.Font.meta)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(minWidth: DS.Size.projectColumn * 0.6, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: DS.Size.branchMinWidth, maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
                 if !isCompact {
                     Text(project.lastActivityAt.map { Format.relative($0) } ?? "—")
@@ -198,13 +198,13 @@ struct ProjectTableRow: View {
                     if project.kind == .repo {
                         SparkLine(
                             values: project.commitsLast14Days.isEmpty ? Array(repeating: 0, count: 14) : project.commitsLast14Days,
-                            width: isCompact ? DS.Size.sparkline.width * 0.6 : DS.Size.sparkline.width
+                            width: isCompact ? DS.Size.sparklineCompactWidth : DS.Size.sparkline.width
                         )
                     } else {
                         Text("—").font(DS.Font.meta).foregroundStyle(DS.Color.dim)
                     }
                 }
-                .frame(width: isCompact ? DS.Size.sparkline.width * 0.6 : DS.Size.sparkline.width, alignment: .leading)
+                .frame(width: isCompact ? DS.Size.sparklineCompactWidth : DS.Size.sparkline.width, alignment: .leading)
                 .clipped()
                 Text(state.label)
                     .font(DS.Font.tag)

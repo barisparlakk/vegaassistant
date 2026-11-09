@@ -114,14 +114,14 @@ struct TodaySkeleton: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
                 VStack(alignment: .leading, spacing: DS.Space.l) {
-                    SkeletonBar(width: 180)
-                    SkeletonBar(width: 620).frame(height: DS.Space.xxl)
-                    SkeletonBar(width: 420)
+                    SkeletonBar(width: DS.Size.Skeleton.label)
+                    SkeletonBar(width: DS.Size.Skeleton.title).frame(height: DS.Space.xxl)
+                    SkeletonBar(width: DS.Size.Skeleton.meta)
                     VStack(spacing: DS.Space.m) {
                         ForEach(0..<3, id: \.self) { index in
                             HStack(spacing: DS.Space.m) {
                                 SkeletonBar(width: DS.Size.checkbox)
-                                SkeletonBar(width: CGFloat(340 - index * 40))
+                                SkeletonBar(width: DS.Size.Skeleton.task - CGFloat(index) * DS.Size.Skeleton.taskStep)
                                 Spacer()
                                 SkeletonBar(width: DS.Space.xl)
                             }

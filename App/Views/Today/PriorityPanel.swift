@@ -58,7 +58,7 @@ struct PriorityPanel: View {
                     .id(ConsoleCursor.task(task.id))
                 }
             }
-            .background(DS.Color.panel.opacity(0.6), in: RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
+            .background(DS.Color.inset, in: RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
                     .strokeBorder(DS.Color.divider, lineWidth: DS.Size.hairline)

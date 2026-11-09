@@ -28,7 +28,7 @@ struct MorningApp: App {
                     Task { await model.reloadBriefings() }
                 }
         }
-        .defaultSize(width: 1280, height: 860)
+        .defaultSize(DS.Size.windowDefault)
         .windowStyle(.hiddenTitleBar)
         // morning:// links (from the scheduler, notifications) come to this window.
         .handlesExternalEvents(matching: ["*"])

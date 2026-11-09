@@ -95,7 +95,7 @@ struct SidebarRow: View {
             .padding(.vertical, DS.Space.s - DS.Space.xxs)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
-                    .fill(isSelected ? DS.Color.selected : (isHovered ? DS.Color.selected.opacity(0.5) : .clear))
+                    .fill(isSelected ? DS.Color.selected : (isHovered ? DS.Color.hover : .clear))
             )
             .contentShape(Rectangle())
         }
@@ -247,7 +247,7 @@ struct StatusBar: View {
                             .foregroundStyle(DS.Color.accentInk(accent))
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .frame(maxWidth: 280, alignment: .trailing)
+                            .frame(maxWidth: DS.Size.statusBlockMaxWidth, alignment: .trailing)
                     }
                 }
                 .buttonStyle(.plain)

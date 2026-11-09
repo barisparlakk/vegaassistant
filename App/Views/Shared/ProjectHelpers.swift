@@ -94,3 +94,15 @@ extension Array where Element: Hashable {
         return filter { seen.insert($0).inserted }
     }
 }
+
+#Preview("Evidence rows") {
+    let facts = MockData.briefing().facts
+    VStack(alignment: .leading, spacing: DS.Space.s) {
+        ForEach(facts.evidence(facts.sessions.map(\.id) + facts.commits.prefix(3).map(\.id) + ["pr:barisparlakk/daybase#42"])) { EvidenceRow(evidence: $0) }
+        ProjectOpenMenu(project: facts.projects.first)
+    }
+    .padding(DS.Space.xxl)
+    .frame(width: 640)
+    .background(ConsoleBackdrop())
+    .preferredColorScheme(.dark)
+}

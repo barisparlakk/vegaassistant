@@ -59,6 +59,20 @@ enum DS {
         static let backdropGlowRadius: CGFloat = 520
         static let settingsLabelWidth: CGFloat = 220
         static let accentSwatch: CGFloat = 16
+        static let windowDefault = CGSize(width: 1280, height: 860)
+        static let filterFieldWidth: CGFloat = 280
+        static let statusBlockMaxWidth: CGFloat = 280
+        static let pathFieldWidth: CGFloat = 320
+        static let sparklineCompactWidth: CGFloat = 72
+        static let branchMinWidth: CGFloat = 80
+        /// Placeholder bar lengths, shaped like the real priority panel.
+        enum Skeleton {
+            static let label: CGFloat = 180
+            static let title: CGFloat = 620
+            static let meta: CGFloat = 420
+            static let task: CGFloat = 340
+            static let taskStep: CGFloat = 40
+        }
     }
 
     // MARK: - Color
@@ -71,6 +85,9 @@ enum DS {
         static let divider = dynamic(dark: 0x1C1E22, light: 0xEDEBE6)
         static let selected = dynamic(dark: 0x24262B, light: 0xECEAE4)
         static let selectedStrong = dynamic(dark: 0x2A2C33, light: 0xE3E0D8)
+        static let hover = dynamic(dark: 0x1A1B20, light: 0xF1EFEA)
+        /// Inset well inside the priority panel (task list).
+        static let inset = dynamic(dark: 0x0F1013, light: 0xFAF9F6)
         static let text = dynamic(dark: 0xE8E6E1, light: 0x1E1D1B)
         static let heading = dynamic(dark: 0xFFFFFF, light: 0x000000)
         static let muted = dynamic(dark: 0x9A9A94, light: 0x66655F)
@@ -182,6 +199,12 @@ extension Color {
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255
         )
+    }
+
+    /// From a stored `#RRGGBB` (calendar colors, settings); nil if malformed.
+    init?(hex: String?) {
+        guard let hex, hex.hasPrefix("#"), hex.count == 7, let value = UInt32(hex.dropFirst(), radix: 16) else { return nil }
+        self.init(hex: value)
     }
 
     /// `#RRGGBB` for storing a picked color in settings.

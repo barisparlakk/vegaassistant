@@ -4,10 +4,13 @@ A personal daily briefing for macOS. Every morning Morning reads what happened s
 
 It runs Claude Code in headless mode (`claude -p`) on your **Claude subscription**. It never uses an API key and sends nothing anywhere except the briefing prompt to Claude.
 
-- **Today** — a one-line summary of the day, a focus project with up to three checkable next tasks, an overnight timeline, today's agenda with a now-line, and the things that need a decision, each with buttons to open the repo in Terminal, your editor or GitHub.
-- **History** — every past briefing, by date.
-- **Projects** — every repository it found, with a 14-day commit sparkline and details.
-- **Menu bar** — today's focus, the next event and a Regenerate button.
+The interface is a dense, keyboard-first "dev console": dark by default (light mode works too), IBM Plex Mono for labels and metadata, IBM Plex Sans for headlines and summaries, Liquid Glass only on the sidebar.
+
+- **Today** — the day's priority (headline, project, estimate, why) with up to three checkable tasks and a focus-block timer; `overnight.log` with what happened per project and a `DONE` / `NEEDS_YOU` / `FAILED` status; the agenda with a now-line; `attention` items with Terminal / editor / GitHub buttons; and the top news.
+- **History** — every past briefing by date, in the same layout.
+- **Projects** — a table of every repository: branch, last touched, 14-day activity line, and state (active, idle, or a deadline like `T-18d`).
+- **News** — recent stories per category, found with Claude Code's web search, with a line when a story relates to one of your projects.
+- **Menu bar** — the priority, next event, top news and regenerate.
 
 ## Requirements
 
@@ -143,6 +146,30 @@ morning-cli hook snippet
 
 The entry only works if the script exists at that path. `morning-cli hook install` writes it; if you add the entry by hand, copy the script from `HookInstaller.script` in `Packages/MorningKit/Sources/MorningKit/System/HookInstaller.swift` and make it executable.
 
+## Keyboard
+
+| Where | Keys |
+|---|---|
+| Everywhere | `⌘1` today · `⌘2` history · `⌘3` projects · `⌘4` news · `⌘,` settings · `⌘R` regenerate |
+| Today | `j`/`k` or arrows move · `space` check a task · `↵` start a focus block / expand a row / open · `⌫` skip a task · `t` `e` `g` open the selected item in Terminal, editor or GitHub · `s` save a story |
+| Projects | `j`/`k` move · `↵` details · `/` filter · `t` `e` `g` open · `esc` close details |
+| History | `j`/`k` move between days |
+| News | `j`/`k` move · `↵` open (marks read) · `s` save · `←`/`→` or `1`–`9` categories · `r` refresh |
+
+Focus blocks and skipped tasks are kept in the app only; checked tasks are stored with the briefing day.
+
+## News
+
+Alongside each briefing, Morning runs a second headless call that may use one tool, Claude Code's **WebSearch** (pre-approved with `--allowedTools`; nothing else is available to it). It looks for recent stories in your categories and returns JSON that Morning validates: only `https` links, no duplicates, at most N per category, and a `relevance` line only when it names one of your real projects. The feed is saved next to the briefing as `briefings/YYYY-MM-DD.news.json`. A news failure never blocks the briefing; it shows as a source line.
+
+Configure it in Settings › News: on/off, items per category, and the categories themselves (a label plus, in plain words, what to look for). Defaults: ai+tech, research (arXiv cs.AI/cs.LG), türkiye, science. Refresh any time with `r` in the News view or:
+
+```bash
+morning-cli news --refresh
+```
+
+It adds one subscription call with web search, usually 30–90 seconds, running at the same time as the briefing call.
+
 ## How a briefing is made
 
 ```
@@ -172,6 +199,7 @@ Before running `claude`, Morning removes every `ANTHROPIC_*` variable (including
 ```
 morning-cli generate [--trigger manual|scheduled] [--if-needed] [--dry-run] [--model NAME] [--since 24h|3d|ISO-8601]
 morning-cli context  [--json] [--since …]        collected data, without calling Claude
+morning-cli news [--refresh] [--dry-run] [--json] today's news feed (refresh runs the web search)
 morning-cli list                                saved briefings
 morning-cli show [YYYY-MM-DD] [--json]          a briefing as Markdown or JSON
 morning-cli schedule install|uninstall|status [--time HH:MM]
@@ -201,6 +229,8 @@ Morning finds `claude` even when launched from Finder or launchd, where `PATH` i
 | `~/Library/Application Support/Morning/settings.json` | Settings |
 | `~/Library/Application Support/Morning/state.json` | Last run, last error |
 | `~/Library/Application Support/Morning/checks.json` | Which focus tasks you checked off |
+| `~/Library/Application Support/Morning/briefings/*.news.json` | News feed for each day |
+| `~/Library/Application Support/Morning/news-state.json` | Read and saved stories |
 | `~/Library/Logs/Morning/scheduler.log` | Output of scheduled runs |
 | `~/Library/LaunchAgents/com.barisparlak.Morning.scheduler.plist` | The scheduler |
 | `~/.morning/log.jsonl`, `~/.morning/hooks/` | Stop-hook log and script |
@@ -223,9 +253,13 @@ cd Packages/MorningKit && swift test
 ```
 
 - `Packages/MorningKit` — collectors, prompt builder, Claude runner, validator, stores, scheduler and hook installers, plus the `morning-cli` sources. Builds and tests with plain SwiftPM.
-- `App/` — the SwiftUI app. `DesignSystem/` holds every spacing, radius, type, color and motion token and the shared components; views never use raw numbers.
+- `App/` — the SwiftUI app. `DesignSystem/DS.swift` holds every spacing, radius, size, color (dark values with derived light ones), type and motion token; `DSComponents.swift` the shared panels, rows, tags, buttons and skeletons. Views use tokens, not raw numbers.
 - Every view has `#Preview`s with realistic sample data (`MockData`).
 - Launch the app with `--demo` (or `MORNING_DEMO=1`) to use sample data instead of your own.
+
+## Fonts
+
+Morning bundles [IBM Plex Mono and IBM Plex Sans](https://github.com/IBM/plex) (Regular, Medium, SemiBold; Mono also Bold), © IBM Corp., under the SIL Open Font License 1.1 — see `App/Resources/Fonts/OFL.txt`. They're registered for the app only, through `ATSApplicationFontsPath`.
 
 ## Uninstall
 

@@ -46,7 +46,7 @@ final class GenerationProgress {
     }
 
     func apply(_ event: GenerationEvent) {
-        withAnimation(Motion.snappy) {
+        withAnimation(DS.Motion.fast) {
             switch event {
             case let .collecting(.started(kind)):
                 update(kind.rawValue) { $0.state = .running }

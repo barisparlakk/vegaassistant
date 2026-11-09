@@ -148,7 +148,7 @@ final class AppModel {
         if let briefing = await service.latest() {
             checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id)
             if currentBriefing?.generatedAt != briefing.generatedAt {
-                withAnimation(Motion.spring) { today = .loaded(briefing) }
+                withAnimation(DS.Motion.standard) { today = .loaded(briefing) }
             }
         } else {
             today = .empty
@@ -174,7 +174,7 @@ final class AppModel {
         if let briefing { checkedKeys[briefing.id] = await service.checkedKeys(for: briefing.id) }
         await loadNews(for: id)
         guard selectedHistoryID == id else { return }
-        withAnimation(Motion.gentle) { historyBriefing = briefing }
+        withAnimation(DS.Motion.standard) { historyBriefing = briefing }
     }
 
     // MARK: Generation
@@ -187,7 +187,7 @@ final class AppModel {
         guard !isGenerating else { return }
         lastError = nil
         let progress = GenerationProgress()
-        withAnimation(Motion.spring) { generation = progress }
+        withAnimation(DS.Motion.standard) { generation = progress }
         let service = service
         Task {
             do {
@@ -198,7 +198,7 @@ final class AppModel {
                 history = await service.summaries()
                 if selectedHistoryID == briefing.id { historyBriefing = briefing }
                 await loadNews(for: briefing.id)
-                withAnimation(Motion.spring) {
+                withAnimation(DS.Motion.standard) {
                     today = .loaded(briefing)
                     generation = nil
                 }
@@ -206,10 +206,10 @@ final class AppModel {
                 system = await service.systemStatus()
                 system.notificationsAllowed = await notificationStatus()
             } catch GeneratorError.alreadyGeneratedToday {
-                withAnimation(Motion.spring) { generation = nil }
+                withAnimation(DS.Motion.standard) { generation = nil }
                 await reloadBriefings()
             } catch {
-                withAnimation(Motion.spring) {
+                withAnimation(DS.Motion.standard) {
                     lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                     generation = nil
                     if case .loading = today { today = .empty }
@@ -369,7 +369,7 @@ final class AppModel {
 
     func toggle(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
         let checked = !isChecked(task, in: briefingID)
-        withAnimation(Motion.snappy) {
+        withAnimation(DS.Motion.fast) {
             if checked {
                 checkedKeys[briefingID, default: []].insert(task.checkKey)
             } else {
@@ -474,7 +474,7 @@ extension AppModel {
     private func refreshStatus() async {
         var status = await service.systemStatus()
         status.notificationsAllowed = await notificationStatus()
-        withAnimation(Motion.snappy) { system = status }
+        withAnimation(DS.Motion.fast) { system = status }
     }
 
     func requestCalendarAccess() { requestAccess(.calendar) }
@@ -486,7 +486,7 @@ extension AppModel {
         Task {
             var status = await service.requestAccess(to: kind)
             status.notificationsAllowed = system.notificationsAllowed
-            withAnimation(Motion.snappy) { system = status }
+            withAnimation(DS.Motion.fast) { system = status }
         }
     }
 
