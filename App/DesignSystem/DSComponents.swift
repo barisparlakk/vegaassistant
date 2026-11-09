@@ -3,27 +3,16 @@ import SwiftUI
 
 // MARK: - Backdrop
 
-/// #0B0C0E with a very faint accent glow at the top center.
+/// The window background.
 struct ConsoleBackdrop: View {
-    @Environment(\.accent) private var accent
-
     var body: some View {
-        ZStack {
-            DS.Color.background
-            RadialGradient(
-                colors: [accent.opacity(0.07), .clear],
-                center: .top,
-                startRadius: 0,
-                endRadius: DS.Size.backdropGlowRadius
-            )
-        }
-        .ignoresSafeArea()
+        DS.Color.background.ignoresSafeArea()
     }
 }
 
 // MARK: - Panels
 
-/// Solid content panel: #111216, 1px border, radius 14. Optional console-style header.
+/// Content card: solid surface, hairline border, soft shadow, radius 14. Optional header.
 struct Panel<Header: View, Content: View>: View {
     @ViewBuilder var header: Header
     @ViewBuilder var content: Content
@@ -40,6 +29,7 @@ struct Panel<Header: View, Content: View>: View {
                 .strokeBorder(DS.Color.border, lineWidth: DS.Size.hairline)
         }
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.panel, style: .continuous))
+        .shadow(color: DS.Color.shadow, radius: 1.5, y: 1)
     }
 }
 
@@ -51,7 +41,7 @@ extension Panel where Header == EmptyView {
 }
 
 extension Panel where Header == PanelHeader<Text> {
-    /// A panel with a lowercase mono title and right-aligned counts.
+    /// A panel with a title and right-aligned counts.
     init(_ title: String, counts: String? = nil, @ViewBuilder content: () -> Content) {
         self.header = PanelHeader(title: title) { Text(counts ?? "") }
         self.content = content()
@@ -81,7 +71,7 @@ struct PanelHeader<Trailing: View>: View {
     }
 }
 
-/// The priority panel's surface: #15161B → #111216, radius 18, accent-tinted border.
+/// The focus card's surface: accent-tinted gradient border, soft lift.
 struct PriorityPanelBackground: ViewModifier {
     @Environment(\.accent) private var accent
 
@@ -94,10 +84,12 @@ struct PriorityPanelBackground: ViewModifier {
             .overlay {
                 RoundedRectangle(cornerRadius: DS.Radius.priority, style: .continuous)
                     .strokeBorder(
-                        LinearGradient(colors: [accent.opacity(0.35), DS.Color.border], startPoint: .top, endPoint: .bottom),
+                        LinearGradient(colors: [accent.opacity(0.6), DS.Color.border], startPoint: .top, endPoint: .center),
                         lineWidth: DS.Size.hairline
                     )
             }
+            .shadow(color: DS.Color.shadow, radius: 1.5, y: 1)
+            .shadow(color: DS.Color.shadow, radius: 20, y: 14)
     }
 }
 
@@ -134,14 +126,14 @@ extension View {
 
 // MARK: - Labels & tags
 
-/// `VIEWS`, `PROJECTS` — small spaced mono label.
+/// "Views", "Projects" — small section label.
 struct SectionLabel: View {
     let text: String
 
     init(_ text: String) { self.text = text }
 
     var body: some View {
-        Text(text.uppercased())
+        Text(text.prefix(1).uppercased() + text.dropFirst())
             .font(DS.Font.label)
             .tracking(DS.Tracking.label)
             .foregroundStyle(DS.Color.dim)
@@ -188,7 +180,7 @@ struct StatusTag: View {
     }
 }
 
-/// `⌘R`, `↵`, `J/K` — shortcut hint in a hairline box.
+/// `⌘R`, `↵`, `j/k` — a quiet shortcut hint.
 struct KeyHint: View {
     let keys: String
 
@@ -198,17 +190,11 @@ struct KeyHint: View {
         Text(keys)
             .font(DS.Font.key)
             .foregroundStyle(DS.Color.dim)
-            .padding(.horizontal, DS.Space.xs)
-            .padding(.vertical, DS.Space.xxs / 2)
-            .overlay {
-                RoundedRectangle(cornerRadius: DS.Radius.tag, style: .continuous)
-                    .strokeBorder(DS.Color.border, lineWidth: DS.Size.hairline)
-            }
             .accessibilityHidden(true)
     }
 }
 
-/// Glowing status dot.
+/// Status dot.
 struct GlowDot: View {
     var color: Color
 
@@ -216,13 +202,13 @@ struct GlowDot: View {
         Circle()
             .fill(color)
             .frame(width: DS.Size.dot, height: DS.Size.dot)
-            .shadow(color: color.opacity(0.8), radius: DS.Size.dot)
+
     }
 }
 
 // MARK: - Buttons
 
-/// Mono buttons. `.primary` is accent-filled with a soft glow (the only shadow in the app).
+/// Buttons. `.primary` is the neutral ink pill; `.outline` a hairline control; `.ghost` text only.
 struct ConsoleButtonStyle: ButtonStyle {
     enum Kind { case primary, outline, ghost }
     var kind: Kind = .outline
@@ -233,13 +219,16 @@ struct ConsoleButtonStyle: ButtonStyle {
         configuration.label
             .font(DS.Font.button)
             .lineLimit(1)
-            .padding(.horizontal, DS.Space.m)
-            .padding(.vertical, DS.Space.s - DS.Space.xxs)
+            .padding(.horizontal, kind == .primary ? DS.Space.l + DS.Space.xs : DS.Space.m)
+            .padding(.vertical, kind == .primary ? DS.Space.s + DS.Space.xxs : DS.Space.s - DS.Space.xxs)
             .foregroundStyle(foreground)
             .background {
-                RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
-                    .fill(fill(pressed: configuration.isPressed))
-                    .shadow(color: kind == .primary && isEnabled ? accent.opacity(0.45) : .clear, radius: DS.Size.glow)
+                if kind == .primary {
+                    Capsule().fill(fill(pressed: configuration.isPressed))
+                } else {
+                    RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
+                        .fill(fill(pressed: configuration.isPressed))
+                }
             }
             .overlay {
                 if kind == .outline {
@@ -247,6 +236,7 @@ struct ConsoleButtonStyle: ButtonStyle {
                         .strokeBorder(DS.Color.border, lineWidth: DS.Size.hairline)
                 }
             }
+            .shadow(color: kind == .outline ? DS.Color.shadow : .clear, radius: 1, y: 1)
             .opacity(isEnabled ? 1 : 0.45)
             .contentShape(Rectangle())
             .animation(DS.Motion.fast, value: configuration.isPressed)
@@ -254,7 +244,7 @@ struct ConsoleButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch kind {
-        case .primary: DS.Color.onAccent
+        case .primary: DS.Color.onInk
         case .outline: DS.Color.text
         case .ghost: DS.Color.muted
         }
@@ -262,8 +252,9 @@ struct ConsoleButtonStyle: ButtonStyle {
 
     private func fill(pressed: Bool) -> Color {
         switch kind {
-        case .primary: accent.opacity(pressed ? 0.8 : 1)
-        case .outline, .ghost: pressed ? DS.Color.selectedStrong : .clear
+        case .primary: DS.Color.inkFill.opacity(pressed ? 0.8 : 1)
+        case .outline: pressed ? DS.Color.selectedStrong : DS.Color.panel
+        case .ghost: pressed ? DS.Color.selectedStrong : .clear
         }
     }
 }
@@ -274,7 +265,7 @@ extension ButtonStyle where Self == ConsoleButtonStyle {
     static var consoleGhost: ConsoleButtonStyle { ConsoleButtonStyle(kind: .ghost) }
 }
 
-/// "label ⌘R" — a mono button label with its shortcut hint.
+/// "Label ⌘R" — a button label with its shortcut hint.
 struct ShortcutLabel: View {
     let title: String
     let keys: String
@@ -285,8 +276,8 @@ struct ShortcutLabel: View {
             Text(title)
             Text(keys)
                 .font(DS.Font.key)
-                .opacity(onAccent ? 0.7 : 1)
-                .foregroundStyle(onAccent ? DS.Color.onAccent : DS.Color.dim)
+                .opacity(onAccent ? 0.6 : 1)
+                .foregroundStyle(onAccent ? DS.Color.onInk : DS.Color.dim)
         }
     }
 }
@@ -319,17 +310,17 @@ struct IconButton: View {
 
 // MARK: - Inputs
 
-/// Square mono checkbox.
+/// Rounded checkbox.
 struct ConsoleCheckbox: View {
     let isOn: Bool
     @Environment(\.accent) private var accent
 
     var body: some View {
-        RoundedRectangle(cornerRadius: DS.Radius.tag - 1, style: .continuous)
-            .fill(isOn ? accent : .clear)
+        RoundedRectangle(cornerRadius: DS.Radius.tag, style: .continuous)
+            .fill(isOn ? accent : DS.Color.panel)
             .overlay {
-                RoundedRectangle(cornerRadius: DS.Radius.tag - 1, style: .continuous)
-                    .strokeBorder(isOn ? accent : DS.Color.dim, lineWidth: DS.Size.hairline)
+                RoundedRectangle(cornerRadius: DS.Radius.tag, style: .continuous)
+                    .strokeBorder(isOn ? accent : DS.Color.dim.opacity(0.7), lineWidth: DS.Size.hairline)
             }
             .overlay {
                 if isOn {

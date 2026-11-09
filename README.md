@@ -4,7 +4,7 @@ A personal daily briefing for macOS. Every morning Morning reads what happened s
 
 It runs Claude Code in headless mode (`claude -p`) on your **Claude subscription**. It never uses an API key and sends nothing anywhere except the briefing prompt to Claude.
 
-The interface is a dense, keyboard-first "dev console": dark by default (light mode works too), IBM Plex Mono for labels and metadata, IBM Plex Sans for headlines and summaries, Liquid Glass only on the sidebar.
+The interface is calm and keyboard-first. It follows the system light or dark mode and uses the system font. Today opens with a glass orb, a greeting and the day's headline, then the focus card, overnight work, news and the decisions waiting on you.
 
 - **Today** — the day's priority (headline, project, estimate, why) with up to three checkable tasks and a focus-block timer; `overnight.log` with what happened per project and a `DONE` / `NEEDS_YOU` / `FAILED` status; the agenda with a now-line; `attention` items with Terminal / editor / GitHub buttons; and the top news.
 - **History** — every past briefing by date, in the same layout.
@@ -253,13 +253,9 @@ cd Packages/MorningKit && swift test
 ```
 
 - `Packages/MorningKit` — collectors, prompt builder, Claude runner, validator, stores, scheduler and hook installers, plus the `morning-cli` sources. Builds and tests with plain SwiftPM.
-- `App/` — the SwiftUI app. `DesignSystem/DS.swift` holds every spacing, radius, size, color (dark values with derived light ones), type and motion token; `DSComponents.swift` the shared panels, rows, tags, buttons and skeletons. Views use tokens, not raw numbers.
+- `App/` — the SwiftUI app. `DesignSystem/DS.swift` holds every spacing, radius, size, color (light and dark values), type and motion token; `DSComponents.swift` the shared panels, rows, tags, buttons and skeletons. Views use tokens, not raw numbers.
 - Every view has `#Preview`s with realistic sample data (`MockData`).
 - Launch the app with `--demo` (or `MORNING_DEMO=1`) to use sample data instead of your own.
-
-## Fonts
-
-Morning bundles [IBM Plex Mono and IBM Plex Sans](https://github.com/IBM/plex) (Regular, Medium, SemiBold; Mono also Bold), © IBM Corp., under the SIL Open Font License 1.1 — see `App/Resources/Fonts/OFL.txt`. They're registered for the app only, through `ATSApplicationFontsPath`.
 
 ## Uninstall
 

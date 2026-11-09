@@ -39,17 +39,22 @@ struct RootView: View {
 
 // MARK: - Sidebar
 
-/// The only Liquid Glass surface: the system sidebar material, with console rows on top.
+/// The system sidebar material with the orb, the views and active projects.
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.xl) {
-                VStack(alignment: .leading, spacing: DS.Space.xs) {
-                    SectionLabel("views")
-                        .padding(.horizontal, DS.Space.s)
-                        .padding(.bottom, DS.Space.xs)
+                HStack(spacing: DS.Space.s + DS.Space.xxs) {
+                    GlassOrb(size: DS.Size.brandOrb)
+                        .padding(.bottom, -DS.Size.brandOrb * 0.12)
+                    Text("Morning")
+                        .font(DS.Font.brand)
+                        .foregroundStyle(DS.Color.heading)
+                }
+                .padding(.horizontal, DS.Space.s)
+                VStack(alignment: .leading, spacing: DS.Space.xxs) {
                     ForEach(SidebarItem.allCases) { item in
                         SidebarRow(item: item, isSelected: model.selection == item) {
                             model.selection = item
@@ -77,13 +82,13 @@ struct SidebarRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DS.Space.xs) {
-                Text("›")
-                    .font(DS.Font.nav)
-                    .foregroundStyle(accent)
-                    .opacity(isSelected ? 1 : 0)
-                Text(item.title.lowercased())
-                    .font(DS.Font.nav)
+            HStack(spacing: DS.Space.s) {
+                Image(systemName: item.symbol)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(isSelected ? DS.Color.accentInk(accent) : DS.Color.dim)
+                    .frame(width: DS.Space.l + DS.Space.xs)
+                Text(item.title)
+                    .font(isSelected ? DS.Font.navSelected : DS.Font.nav)
                     .foregroundStyle(isSelected ? DS.Color.heading : DS.Color.muted)
                 Spacer()
                 Text(item.keys)
@@ -114,11 +119,11 @@ struct SidebarProjects: View {
     var body: some View {
         let projects = model.currentBriefing?.facts.activeProjects ?? []
         VStack(alignment: .leading, spacing: DS.Space.xxs) {
-            SectionLabel("projects")
+            SectionLabel("Projects")
                 .padding(.horizontal, DS.Space.s)
                 .padding(.bottom, DS.Space.xs)
             if projects.isEmpty {
-                Text("none yet")
+                Text("None yet")
                     .font(DS.Font.metaSmall)
                     .foregroundStyle(DS.Color.dim)
                     .padding(.horizontal, DS.Space.s)
@@ -129,8 +134,8 @@ struct SidebarProjects: View {
                     model.selectedProjectID = project.id
                 } label: {
                     HStack(spacing: DS.Space.s) {
-                        Text(project.name.lowercased())
-                            .font(DS.Font.metaSmall)
+                        Text(project.name)
+                            .font(DS.Font.small)
                             .foregroundStyle(DS.Color.text)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -173,8 +178,8 @@ struct ProjectState {
     var label: String {
         switch kind {
         case let .deadline(days): "T-\(days)d"
-        case .active: "active"
-        case .idle: "idle"
+        case .active: "Active"
+        case .idle: "Idle"
         }
     }
 
@@ -189,7 +194,7 @@ struct ProjectState {
 
 // MARK: - Status bar
 
-/// `MORNING ~/briefing/2026-11-09 ················· ● last run 10:19 · ok · 1m04s  [regenerate ⌘R]`
+/// `Today ··················· ● Ready at 07:00  [Regenerate ⌘R]`
 struct StatusBar: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accent) private var accent
@@ -197,19 +202,15 @@ struct StatusBar: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: DS.Space.m) {
-                Text("MORNING")
-                    .font(DS.Font.brand)
-                    .foregroundStyle(DS.Color.heading)
-                Text(path)
-                    .font(DS.Font.path)
-                    .foregroundStyle(DS.Color.muted)
-                    .lineLimit(1)
+                Text(model.selection.title)
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.text)
                 Spacer(minLength: DS.Space.l)
                 status
                 Button {
                     model.regenerate()
                 } label: {
-                    ShortcutLabel(title: model.isGenerating ? "running" : "regenerate", keys: "⌘R")
+                    ShortcutLabel(title: model.isGenerating ? "Working…" : "Regenerate", keys: "⌘R")
                 }
                 .buttonStyle(.consoleOutline)
                 .disabled(model.isGenerating)
@@ -223,26 +224,12 @@ struct StatusBar: View {
         }
     }
 
-    private var path: String {
-        let id: String = switch model.selection {
-        case .history: model.selectedHistoryID ?? model.currentBriefing?.id ?? Briefing.id(for: .now)
-        default: model.currentBriefing?.id ?? Briefing.id(for: .now)
-        }
-        let leaf: String = switch model.selection {
-        case .today, .history: id
-        case .projects: "projects"
-        case .news: "\(id)/news"
-        case .settings: "settings"
-        }
-        return "~/briefing/\(leaf)"
-    }
-
     @ViewBuilder private var status: some View {
         HStack(spacing: DS.Space.s) {
             if let block = model.focusBlock, !model.isGenerating {
                 Button(action: model.stopBlock) {
                     TimelineView(.periodic(from: block.startedAt, by: 1)) { context in
-                        Text("block \(Format.clock(context.date.timeIntervalSince(block.startedAt))) · \(block.title.lowercased())")
+                        Text("Focus \(Format.clock(context.date.timeIntervalSince(block.startedAt))) · \(block.title)")
                             .font(DS.Font.meta)
                             .foregroundStyle(DS.Color.accentInk(accent))
                             .lineLimit(1)
@@ -265,18 +252,18 @@ struct StatusBar: View {
                 }
             } else if let error = model.lastError {
                 GlowDot(color: DS.Color.failed)
-                Text("last run failed")
+                Text("Last run failed")
                     .font(DS.Font.meta)
                     .foregroundStyle(DS.Color.failed)
                     .help(error)
             } else if let briefing = model.currentBriefing {
                 GlowDot(color: briefing.structured == nil ? DS.Color.failed : accent)
-                Text("last run \(Format.time(briefing.generatedAt)) · \(briefing.structured == nil ? "text" : "ok") · \(Format.duration(ms: briefing.durationMs))")
+                Text("Ready at \(Format.time(briefing.generatedAt))\(briefing.structured == nil ? " · shown as text" : "")")
                     .font(DS.Font.meta)
                     .foregroundStyle(DS.Color.muted)
             } else {
                 GlowDot(color: DS.Color.dim)
-                Text("no runs yet")
+                Text("No runs yet")
                     .font(DS.Font.meta)
                     .foregroundStyle(DS.Color.dim)
             }

@@ -1,7 +1,7 @@
 import MorningKit
 import SwiftUI
 
-/// Today: priority, overnight.log, agenda, attention, news.feed.
+/// Today: the hero, then focus, overnight, news and decisions.
 struct TodayView: View {
     @Environment(AppModel.self) private var model
 
@@ -16,9 +16,9 @@ struct TodayView: View {
                 case .empty:
                     VStack(alignment: .leading, spacing: 0) {
                         if let error = model.lastError {
-                            ConsoleMessage(text: "last run failed: \(error.lowercased())", actionTitle: "retry", keys: "⌘R", tone: DS.Color.failed, action: model.regenerate)
+                            ConsoleMessage(text: "The last run failed: \(error)", actionTitle: "Try again", keys: "⌘R", tone: DS.Color.failed, action: model.regenerate)
                         } else {
-                            ConsoleMessage(text: "no briefing for today", actionTitle: "regenerate", keys: "⌘R", action: model.regenerate)
+                            ConsoleMessage(text: "No briefing for today yet.", actionTitle: "Regenerate", keys: "⌘R", action: model.regenerate)
                         }
                         Spacer()
                     }
@@ -45,48 +45,52 @@ enum ConsoleCursor: Hashable {
     case news(String)
 }
 
-/// A full briefing laid out as console panels. Read-only in History.
+/// A full briefing as the home layout. Read-only in History.
 struct BriefingConsole: View {
     @Environment(AppModel.self) private var model
     let briefing: Briefing
     var isToday: Bool
 
     @State private var cursor: ConsoleCursor?
-    @State private var expanded: Set<String> = []
+    @State private var width: CGFloat = 0
     @FocusState private var isFocused: Bool
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
-                    banner
-                    if let generated = briefing.structured {
-                        PriorityPanel(briefing: briefing, focus: generated.focus, headline: generated.headline, isReadOnly: !isToday, cursor: $cursor)
-                        OvernightLogPanel(facts: briefing.facts, summary: generated.section(.overnight), cursor: $cursor, expanded: $expanded)
-                        ViewThatFits(in: .horizontal) {
-                            HStack(alignment: .top, spacing: DS.Space.sectionGap) {
-                                AgendaPanel(briefing: briefing, isToday: isToday, cursor: $cursor)
-                                AttentionPanel(facts: briefing.facts, section: generated.section(.attention), cursor: $cursor)
+                VStack(spacing: 0) {
+                    hero
+                    VStack(alignment: .leading, spacing: DS.Space.l + DS.Space.xs) {
+                        banner
+                        if let generated = briefing.structured {
+                            if width >= DS.Size.twoColumnMin {
+                                HStack(alignment: .top, spacing: DS.Space.l + DS.Space.xs) {
+                                    leftColumn(generated).frame(maxWidth: .infinity)
+                                    rightColumn(generated).frame(width: min(DS.Size.newsColumn, width * 0.4))
+                                }
+                            } else {
+                                VStack(spacing: DS.Space.l + DS.Space.xs) {
+                                    leftColumn(generated)
+                                    rightColumn(generated)
+                                }
                             }
-                            VStack(spacing: DS.Space.sectionGap) {
-                                AgendaPanel(briefing: briefing, isToday: isToday, cursor: $cursor)
-                                AttentionPanel(facts: briefing.facts, section: generated.section(.attention), cursor: $cursor)
-                            }
+                        } else {
+                            FallbackPanel(briefing: briefing)
                         }
-                        NewsPreviewPanel(briefingID: briefing.id, cursor: $cursor)
-                        if !generated.nextTasks.isEmpty {
-                            BacklogPanel(tasks: generated.nextTasks, facts: briefing.facts)
-                        }
-                    } else {
-                        FallbackPanel(briefing: briefing)
+                        SourcesLine(briefing: briefing)
+                            .padding(.top, DS.Space.s)
                     }
-                    SourcesLine(briefing: briefing)
-                    KeyboardLegend()
+                    .padding(.horizontal, DS.Space.xxl + DS.Space.l)
+                    .padding(.top, DS.Space.xl + DS.Space.xs)
+                    .padding(.bottom, DS.Space.xxl + DS.Space.l)
+                    .frame(maxWidth: DS.Size.contentMaxWidth + DS.Space.xxl)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width - 2 * (DS.Space.xxl + DS.Space.l) } action: { newWidth in
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) { width = newWidth }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, DS.Space.pageSide)
-                .padding(.vertical, DS.Space.pageTop)
-                .frame(maxWidth: DS.Size.contentMaxWidth)
-                .frame(maxWidth: .infinity)
             }
             .scrollContentBackground(.hidden)
             .focusable()
@@ -103,13 +107,51 @@ struct BriefingConsole: View {
         }
     }
 
+    private var date: Date { Briefing.date(forID: briefing.id) ?? briefing.generatedAt }
+
+    private var hero: some View {
+        let generated = briefing.structured
+        let day = date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        let overline = isToday ? "\(Format.greeting()) · \(day)" : day
+        let total = generated?.focus.tasks.reduce(0) { $0 + $1.estimateMinutes } ?? 0
+        let meetings = briefing.facts.events.filter { !$0.isAllDay }.count
+        let decisions = AttentionRowModel.rows(facts: briefing.facts, section: generated?.section(.attention)).count
+        return TodayHero(overline: overline, title: generated?.headline ?? "Here's your briefing.") {
+            if generated != nil {
+                HeroStat(value: Format.estimate(total), label: "focus")
+            }
+            HeroStat(value: "\(meetings)", label: meetings == 1 ? "meeting" : "meetings")
+            HeroStat(value: "\(decisions)", label: decisions == 1 ? "needs you" : "need you")
+        }
+    }
+
+    private func leftColumn(_ generated: GeneratedBriefing) -> some View {
+        VStack(spacing: DS.Space.l + DS.Space.xs) {
+            PriorityPanel(briefing: briefing, focus: generated.focus, headline: generated.headline, isReadOnly: !isToday, cursor: $cursor)
+            OvernightCard(facts: briefing.facts, summary: generated.section(.overnight), cursor: $cursor)
+            if !AgendaRow.rows(for: briefing.facts).isEmpty {
+                AgendaCard(facts: briefing.facts, cursor: $cursor)
+            }
+        }
+    }
+
+    private func rightColumn(_ generated: GeneratedBriefing) -> some View {
+        VStack(spacing: DS.Space.l + DS.Space.xs) {
+            NewsCard(briefingID: briefing.id, cursor: $cursor)
+            DecisionsCard(facts: briefing.facts, section: generated.section(.attention), cursor: $cursor)
+            if !generated.nextTasks.isEmpty {
+                LaterCard(tasks: generated.nextTasks, facts: briefing.facts)
+            }
+        }
+    }
+
     @ViewBuilder private var banner: some View {
         if isToday, let error = model.lastError {
-            ConsoleMessage(text: "regenerate failed: \(error.lowercased())", actionTitle: "retry", keys: "⌘R", tone: DS.Color.failed, action: model.regenerate)
+            ConsoleMessage(text: "Regenerating failed: \(error)", actionTitle: "Try again", keys: "⌘R", tone: DS.Color.failed, action: model.regenerate)
                 .padding(.horizontal, -DS.Space.rowHorizontal)
         } else if isToday, model.isTodayStale {
-            let day = Format.consoleDate(Briefing.date(forID: briefing.id) ?? briefing.generatedAt).lowercased()
-            ConsoleMessage(text: "showing \(day) — today's hasn't run", actionTitle: "regenerate", keys: "⌘R", action: model.regenerate)
+            let day = date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+            ConsoleMessage(text: "Showing \(day). Today's briefing hasn't run yet.", actionTitle: "Regenerate", keys: "⌘R", action: model.regenerate)
                 .padding(.horizontal, -DS.Space.rowHorizontal)
         }
     }
@@ -121,10 +163,10 @@ struct BriefingConsole: View {
         guard let generated = briefing.structured else { return [] }
         let facts = briefing.facts
         var rows: [ConsoleCursor] = generated.focus.tasks.map { .task($0.id) }
-        rows += OvernightGroup.make(from: facts, summary: generated.section(.overnight)).map { .overnight($0.id) }
+        rows += OvernightGroup.make(from: facts, summary: generated.section(.overnight)).prefix(4).map { .overnight($0.id) }
         rows += AgendaRow.rows(for: facts).map { .agenda($0.id) }
-        rows += AttentionRowModel.rows(facts: facts, section: generated.section(.attention)).indices.map { .attention($0) }
         rows += model.newsPreview(for: briefing.id).map { .news($0.id) }
+        rows += AttentionRowModel.rows(facts: facts, section: generated.section(.attention)).prefix(4).indices.map { .attention($0) }
         return rows
     }
 
@@ -156,10 +198,11 @@ struct BriefingConsole: View {
             case .letter: return .ignored
             }
         case let .overnight(id):
-            guard case .primary = action else { return .ignored }
-            withAnimation(DS.Motion.standard) {
-                if expanded.contains(id) { expanded.remove(id) } else { expanded.insert(id) }
-            }
+            guard case .primary = action,
+                  let project = OvernightGroup.make(from: briefing.facts, summary: generated.section(.overnight)).first(where: { $0.id == id })?.project
+            else { return .ignored }
+            model.selectedProjectID = project.id
+            model.selection = .projects
         case .agenda:
             return .ignored
         case let .attention(index):
@@ -182,28 +225,6 @@ struct BriefingConsole: View {
             }
         }
         return .handled
-    }
-}
-
-/// `j/k move · space check · ↵ start / open · ⌫ skip · t e g open in terminal / editor / github`
-struct KeyboardLegend: View {
-    var body: some View {
-        HStack(spacing: DS.Space.m) {
-            legend("j/k", "move")
-            legend("space", "check")
-            legend("↵", "start · open")
-            legend("⌫", "skip")
-            legend("t e g", "terminal · editor · github")
-            legend("s", "save")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func legend(_ keys: String, _ action: String) -> some View {
-        HStack(spacing: DS.Space.xs) {
-            KeyHint(keys)
-            Text(action).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
-        }
     }
 }
 

@@ -75,9 +75,9 @@ struct SourcesLine: View {
             "\(report.kind.shortName.lowercased()) \(report.status == .ok ? "\(report.itemCount)" : (report.status == .failed ? "failed" : "—"))"
         }
         VStack(alignment: .leading, spacing: DS.Space.xs) {
-            Text("sources: " + parts.joined(separator: " · "))
+            Text("Sources: " + parts.joined(separator: " · "))
             if !briefing.repairs.isEmpty {
-                Text("adjusted: " + briefing.repairs.joined(separator: " ").lowercased())
+                Text("Adjusted: " + briefing.repairs.joined(separator: " "))
             }
             Text("\(briefing.model) · \(briefing.attempts) attempt\(briefing.attempts == 1 ? "" : "s") · \(Format.duration(ms: briefing.durationMs))")
         }
@@ -96,7 +96,6 @@ struct FallbackPanel: View {
             if case let .markdown(text) = briefing.content {
                 Markdown(text)
                     .markdownTheme(.gitHub.text {
-                        FontFamily(.custom("IBM Plex Sans"))
                         FontSize(13)
                         ForegroundColor(DS.Color.text)
                         BackgroundColor(nil)
@@ -108,41 +107,56 @@ struct FallbackPanel: View {
     }
 }
 
-/// The Today layout with skeleton rows — shown while loading or generating.
+/// The home layout while loading or generating: the orb breathes faster and the cards wait.
 struct TodaySkeleton: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
-                VStack(alignment: .leading, spacing: DS.Space.l) {
-                    SkeletonBar(width: DS.Size.Skeleton.label)
-                    SkeletonBar(width: DS.Size.Skeleton.title).frame(height: DS.Space.xxl)
-                    SkeletonBar(width: DS.Size.Skeleton.meta)
-                    VStack(spacing: DS.Space.m) {
-                        ForEach(0..<3, id: \.self) { index in
-                            HStack(spacing: DS.Space.m) {
-                                SkeletonBar(width: DS.Size.checkbox)
-                                SkeletonBar(width: DS.Size.Skeleton.task - CGFloat(index) * DS.Size.Skeleton.taskStep)
-                                Spacer()
-                                SkeletonBar(width: DS.Space.xl)
-                            }
+            VStack(spacing: 0) {
+                TodayHero(overline: Format.greeting(), title: "Getting your morning ready…", isWorking: true) {
+                    if let generation = model.generation {
+                        TimelineView(.periodic(from: generation.startedAt, by: 1)) { context in
+                            Text(generation.consoleLine(now: context.date))
+                                .font(DS.Font.meta)
+                                .foregroundStyle(DS.Color.muted)
+                                .contentTransition(.opacity)
                         }
                     }
                 }
-                .padding(DS.Space.xl)
-                .priorityPanel()
-                .skeletonPulse()
-
-                Panel("overnight.log") { SkeletonRows(count: 4) }
-                HStack(alignment: .top, spacing: DS.Space.sectionGap) {
-                    Panel("agenda") { SkeletonRows(count: 3) }
-                    Panel("attention") { SkeletonRows(count: 3) }
+                HStack(alignment: .top, spacing: DS.Space.l + DS.Space.xs) {
+                    VStack(spacing: DS.Space.l + DS.Space.xs) {
+                        VStack(alignment: .leading, spacing: DS.Space.l) {
+                            SkeletonBar(width: DS.Size.Skeleton.label)
+                            SkeletonBar(width: DS.Size.Skeleton.meta)
+                            VStack(spacing: DS.Space.m) {
+                                ForEach(0..<3, id: \.self) { index in
+                                    HStack(spacing: DS.Space.m) {
+                                        SkeletonBar(width: DS.Size.checkbox)
+                                        SkeletonBar(width: DS.Size.Skeleton.task - CGFloat(index) * DS.Size.Skeleton.taskStep)
+                                        Spacer()
+                                        SkeletonBar(width: DS.Space.xl)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(DS.Space.l + DS.Space.xs + DS.Space.xxs)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .priorityPanel()
+                        .skeletonPulse()
+                        HomeCard("Overnight") { SkeletonRows(count: 3) }
+                    }
+                    VStack(spacing: DS.Space.l + DS.Space.xs) {
+                        HomeCard("Worth reading") { SkeletonRows(count: 3) }
+                        HomeCard("Needs your decision") { SkeletonRows(count: 2) }
+                    }
+                    .frame(width: DS.Size.newsColumn)
                 }
-                Panel("news.feed") { SkeletonRows(count: 3) }
+                .padding(.horizontal, DS.Space.xxl + DS.Space.l)
+                .padding(.vertical, DS.Space.xl + DS.Space.xs)
+                .frame(maxWidth: DS.Size.contentMaxWidth + DS.Space.xxl)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, DS.Space.pageSide)
-            .padding(.vertical, DS.Space.pageTop)
-            .frame(maxWidth: DS.Size.contentMaxWidth)
-            .frame(maxWidth: .infinity)
         }
         .scrollContentBackground(.hidden)
     }

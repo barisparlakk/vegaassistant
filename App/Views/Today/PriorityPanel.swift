@@ -1,7 +1,7 @@
 import MorningKit
 import SwiftUI
 
-/// The day's one priority: label, headline, meta, next tasks, start/skip.
+/// The focus card: project, confidence, why, the tasks, begin/skip. The headline lives in the hero.
 struct PriorityPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accent) private var accent
@@ -14,28 +14,17 @@ struct PriorityPanel: View {
 
     var body: some View {
         let project = briefing.facts.project(focus.projectID)
-        let date = Briefing.date(forID: briefing.id) ?? briefing.generatedAt
         VStack(alignment: .leading, spacing: DS.Space.l) {
             HStack(spacing: DS.Space.s) {
-                Text("\(Format.consoleDate(date)) · PRIORITY_01")
-                    .font(DS.Font.label)
-                    .tracking(DS.Tracking.label)
-                    .foregroundStyle(DS.Color.accentInk(accent))
+                Text("Focus · \(project?.name ?? focus.projectID)")
+                    .font(DS.Font.button)
+                    .foregroundStyle(DS.Color.muted)
                 Spacer()
-                Text("conf: \(focus.confidence.rawValue)")
-                    .font(DS.Font.metaSmall)
-                    .foregroundStyle(DS.Color.dim)
+                ConfidencePill(confidence: focus.confidence)
                 ProjectOpenMenu(project: project)
             }
 
-            Text(headline)
-                .font(DS.Font.priorityTitle)
-                .tracking(DS.Tracking.title)
-                .foregroundStyle(DS.Color.heading)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-
-            meta(project: project)
+            whyLine
 
             if showsWhy {
                 WhyDetail(briefing: briefing, focus: focus)
@@ -68,41 +57,30 @@ struct PriorityPanel: View {
                 actions
             }
         }
-        .padding(DS.Space.xl)
+        .padding(DS.Space.l + DS.Space.xs + DS.Space.xxs)
         .priorityPanel()
     }
 
-    private func meta(project: ProjectFact?) -> some View {
-        let total = focus.tasks.reduce(0) { $0 + $1.estimateMinutes }
-        return HStack(alignment: .firstTextBaseline, spacing: DS.Space.l) {
-            metaPair("project", project?.name ?? focus.projectID)
-            metaPair("est", Format.estimate(total))
-            Button {
-                withAnimation(DS.Motion.standard) { showsWhy.toggle() }
-            } label: {
-                HStack(alignment: .firstTextBaseline, spacing: DS.Space.xs) {
-                    Text("why:").foregroundStyle(DS.Color.dim)
-                    Text(focus.reason)
-                        .foregroundStyle(DS.Color.muted)
-                        .lineLimit(showsWhy ? nil : 1)
-                        .truncationMode(.tail)
-                    Text(showsWhy ? "▴" : "▾").foregroundStyle(DS.Color.dim)
-                }
-                .font(DS.Font.meta)
-                .contentShape(Rectangle())
+    /// The reason in one quiet line; click for the evidence.
+    private var whyLine: some View {
+        Button {
+            withAnimation(DS.Motion.standard) { showsWhy.toggle() }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Space.xs) {
+                Text(focus.reason)
+                    .lineLimit(showsWhy ? nil : 1)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.leading)
+                Image(systemName: showsWhy ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(DS.Color.dim)
             }
-            .buttonStyle(.plain)
-            .help("Show the evidence behind this priority")
+            .font(DS.Font.small)
+            .foregroundStyle(DS.Color.muted)
+            .contentShape(Rectangle())
         }
-    }
-
-    private func metaPair(_ key: String, _ value: String) -> some View {
-        HStack(spacing: DS.Space.xs) {
-            Text("\(key):").foregroundStyle(DS.Color.dim)
-            Text(value).foregroundStyle(DS.Color.text)
-        }
-        .font(DS.Font.meta)
-        .fixedSize()
+        .buttonStyle(.plain)
+        .help("Why this is today's focus")
     }
 
     private var actions: some View {
@@ -113,7 +91,7 @@ struct PriorityPanel: View {
             Button {
                 if let selected { model.startBlock(selected, in: briefing.id) }
             } label: {
-                ShortcutLabel(title: isRunning ? "stop block" : "start block", keys: "↵", onAccent: true)
+                ShortcutLabel(title: isRunning ? "Stop" : "Begin", keys: "↵", onAccent: true)
             }
             .buttonStyle(.consolePrimary)
             .disabled(selected == nil)
@@ -121,14 +99,15 @@ struct PriorityPanel: View {
             Button {
                 if let selected { model.toggleSkip(selected, in: briefing.id) }
             } label: {
-                ShortcutLabel(title: "skip", keys: "⌫")
+                ShortcutLabel(title: "Skip", keys: "⌫")
             }
             .buttonStyle(.consoleOutline)
             .disabled(selected == nil)
 
             Spacer()
             let done = focus.tasks.filter { model.isChecked($0, in: briefing.id) }.count
-            Text("\(done)/\(focus.tasks.count) done")
+            let total = focus.tasks.reduce(0) { $0 + $1.estimateMinutes }
+            Text("\(done) of \(focus.tasks.count) done · \(Format.estimate(total))")
                 .font(DS.Font.metaSmall)
                 .foregroundStyle(DS.Color.dim)
                 .contentTransition(.numericText())
@@ -157,11 +136,12 @@ struct TaskRow: View {
                         .font(DS.Font.rowTitle)
                         .foregroundStyle(isChecked || isSkipped ? DS.Color.dim : DS.Color.text)
                         .strikethrough(isChecked, color: DS.Color.dim)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     if isRunning {
-                        Text("RUNNING").font(DS.Font.tag).foregroundStyle(DS.Color.accentInk(accent))
+                        Text("Running").font(DS.Font.tag).foregroundStyle(DS.Color.accentInk(accent))
                     } else if isSkipped {
-                        Text("SKIPPED").font(DS.Font.tag).foregroundStyle(DS.Color.dim)
+                        Text("Skipped").font(DS.Font.tag).foregroundStyle(DS.Color.dim)
                     }
                     Spacer(minLength: DS.Space.s)
                     Text(Format.estimate(task.estimateMinutes))
@@ -218,4 +198,23 @@ struct WhyDetail: View {
         .environment(AppModel.preview())
         .environment(\.accent, DS.Color.defaultAccent)
         .preferredColorScheme(.dark)
+}
+
+/// "High confidence" in a soft tinted pill.
+struct ConfidencePill: View {
+    let confidence: GeneratedBriefing.Focus.Confidence
+
+    var body: some View {
+        let color: Color = switch confidence {
+        case .high: DS.Color.ok
+        case .medium: DS.Color.warn
+        case .low: DS.Color.dim
+        }
+        Text("\(confidence.rawValue.capitalized) confidence")
+            .font(DS.Font.tag)
+            .foregroundStyle(color)
+            .padding(.horizontal, DS.Space.s)
+            .padding(.vertical, DS.Space.xxs + 1)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
 }

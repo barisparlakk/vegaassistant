@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Morning's design system: a dark, dense "dev console". Designed dark-first; light values
-/// are derived so the app still works in light mode. Views use these tokens only.
+/// Morning's design system: calm light and dark surfaces, the system font, depth from fine
+/// borders and soft shadows, and one glass orb in the hero. Views use these tokens only.
 enum DS {
     // MARK: - Spacing (4-pt scale)
 
@@ -28,7 +28,7 @@ enum DS {
         static let tag: CGFloat = 4
         static let control: CGFloat = 8
         static let panel: CGFloat = 14
-        static let priority: CGFloat = 18
+        static let priority: CGFloat = 16
     }
 
     // MARK: - Sizes
@@ -38,9 +38,13 @@ enum DS {
         static let statusBarHeight: CGFloat = 48
         static let contentMaxWidth: CGFloat = 1100
         static let sidebarWidth: CGFloat = 228
+        static let orb: CGFloat = 150
+        static let brandOrb: CGFloat = 18
+        static let newsColumn: CGFloat = 360
+        static let twoColumnMin: CGFloat = 720
         static let windowMinWidth: CGFloat = 900
         static let windowMinHeight: CGFloat = 600
-        static let checkbox: CGFloat = 14
+        static let checkbox: CGFloat = 16
         static let iconButton: CGFloat = 24
         static let icon: CGFloat = 12
         static let dot: CGFloat = 6
@@ -78,26 +82,37 @@ enum DS {
     // MARK: - Color
 
     enum Color {
-        static let background = dynamic(dark: 0x0B0C0E, light: 0xF6F5F2)
-        static let panel = dynamic(dark: 0x111216, light: 0xFFFFFF)
-        static let panelTop = dynamic(dark: 0x15161B, light: 0xFFFCF6)
-        static let border = dynamic(dark: 0x23252B, light: 0xE1DFD9)
-        static let divider = dynamic(dark: 0x1C1E22, light: 0xEDEBE6)
-        static let selected = dynamic(dark: 0x24262B, light: 0xECEAE4)
-        static let selectedStrong = dynamic(dark: 0x2A2C33, light: 0xE3E0D8)
-        static let hover = dynamic(dark: 0x1A1B20, light: 0xF1EFEA)
-        /// Inset well inside the priority panel (task list).
-        static let inset = dynamic(dark: 0x0F1013, light: 0xFAF9F6)
-        static let text = dynamic(dark: 0xE8E6E1, light: 0x1E1D1B)
-        static let heading = dynamic(dark: 0xFFFFFF, light: 0x000000)
-        static let muted = dynamic(dark: 0x9A9A94, light: 0x66655F)
-        static let dim = dynamic(dark: 0x8A8A84, light: 0x84837D)
-        static let ok = dynamic(dark: 0x7CE38B, light: 0x1F9447)
+        static let background = dynamic(dark: 0x0F1012, light: 0xFBFBFC)
+        static let panel = dynamic(dark: 0x16171A, light: 0xFFFFFF)
+        static let panelTop = dynamic(dark: 0x1A1B1F, light: 0xFFFFFF)
+        static let border = dynamic(dark: 0x26272B, light: 0xE6E6E9)
+        static let divider = dynamic(dark: 0x202125, light: 0xEEEEF0)
+        static let selected = dynamic(dark: 0x222327, light: 0xF1F1F3)
+        static let selectedStrong = dynamic(dark: 0x2A2B30, light: 0xE8E8EB)
+        static let hover = dynamic(dark: 0x1C1D21, light: 0xF5F5F7)
+        /// Inset well inside a card (task list).
+        static let inset = dynamic(dark: 0x131417, light: 0xFAFAFB)
+        static let text = dynamic(dark: 0xEDEEF0, light: 0x1A1B1E)
+        static let heading = dynamic(dark: 0xFFFFFF, light: 0x111214)
+        static let muted = dynamic(dark: 0xA0A3AA, light: 0x5F6168)
+        static let dim = dynamic(dark: 0x80838B, light: 0x7A7D85)
+        static let ok = dynamic(dark: 0x4CC38A, light: 0x18794E)
+        static let warn = dynamic(dark: 0xF5A524, light: 0xC27C0E)
         static let failed = dynamic(dark: 0xFF6B6B, light: 0xD33A3A)
+        /// Soft card shadow.
+        static let shadow = SwiftUI.Color(nsColor: NSColor(name: nil) { appearance in
+            NSColor(white: 0, alpha: appearance.isDark ? 0.40 : 0.06)
+        })
+        /// Hero stage: a lighter pool of light at the top left.
+        static let stageTop = dynamic(dark: 0x24252B, light: 0xFFFFFF)
+        static let stageBottom = dynamic(dark: 0x131418, light: 0xF1F1F5)
+        /// The neutral pill button ("Begin"): ink fill with inverse text.
+        static let inkFill = dynamic(dark: 0xF5F5F7, light: 0x1A1B1E)
+        static let onInk = dynamic(dark: 0x0A0A0C, light: 0xFFFFFF)
         /// Text drawn on an accent fill.
         static let onAccent = SwiftUI.Color(hex: 0x0B0C0E)
 
-        static let defaultAccent = SwiftUI.Color(hex: 0xFFB547)
+        static let defaultAccent = SwiftUI.Color(hex: 0xFF9F43)
 
         /// Accent readable as text in both modes: the light variant is darkened.
         static func accentInk(_ accent: SwiftUI.Color) -> SwiftUI.Color {
@@ -119,43 +134,48 @@ enum DS {
     enum Font {
         enum Weight { case regular, medium, semibold, bold }
 
+        private static func weight(_ weight: Weight) -> SwiftUI.Font.Weight {
+            switch weight {
+            case .regular: .regular
+            case .medium: .medium
+            case .semibold: .semibold
+            case .bold: .bold
+            }
+        }
+
+        /// Numbers, times and keys: the system font with tabular digits.
         static func mono(_ size: CGFloat, _ weight: Weight = .regular) -> SwiftUI.Font {
-            let name = switch weight {
-            case .regular: "IBMPlexMono"
-            case .medium: "IBMPlexMono-Medm"
-            case .semibold: "IBMPlexMono-SmBld"
-            case .bold: "IBMPlexMono-Bold"
-            }
-            return .custom(name, fixedSize: size)
+            .system(size: size, weight: Self.weight(weight)).monospacedDigit()
         }
 
+        /// Everything else: the system font.
         static func sans(_ size: CGFloat, _ weight: Weight = .regular) -> SwiftUI.Font {
-            let name = switch weight {
-            case .regular: "IBMPlexSans"
-            case .medium: "IBMPlexSans-Medm"
-            case .semibold, .bold: "IBMPlexSans-SmBld"
-            }
-            return .custom(name, fixedSize: size)
+            .system(size: size, weight: Self.weight(weight))
         }
 
-        // Mono: labels, metadata, nav, buttons, times, statuses, section titles.
-        static let brand = mono(13, .bold)
-        static let path = mono(12)
-        static let label = mono(10.5, .medium)
-        static let nav = mono(12.5)
-        static let button = mono(12, .medium)
-        static let meta = mono(12)
-        static let metaSmall = mono(11)
-        static let time = mono(12)
-        static let tag = mono(10.5, .semibold)
-        static let panelTitle = mono(12, .medium)
-        static let key = mono(10.5, .medium)
-        static let index = mono(11)
+        static let brand = sans(15, .semibold)
+        static let path = sans(13)
+        static let label = sans(11.5, .semibold)
+        static let nav = sans(13.5)
+        static let navSelected = sans(13.5, .medium)
+        static let button = sans(13, .medium)
+        static let meta = mono(12.5)
+        static let metaSmall = mono(12)
+        static let time = mono(12.5)
+        static let tag = sans(11, .semibold)
+        static let panelTitle = sans(13, .semibold)
+        static let key = mono(11.5)
+        static let index = mono(12)
 
-        // Sans: headlines, task titles, summaries.
-        static let priorityTitle = sans(36, .semibold)
+        // Hero
+        static let greeting = sans(15, .medium)
+        static let heroTitle = SwiftUI.Font.system(size: 38, weight: .semibold)
+        static let heroStat = SwiftUI.Font.system(size: 30, weight: .light).monospacedDigit()
+        static let cardTitle = sans(13, .semibold)
+
+        static let priorityTitle = sans(30, .semibold)
         static let menuTitle = sans(17, .semibold)
-        static let rowTitle = sans(13.5, .medium)
+        static let rowTitle = sans(14.5, .medium)
         static let newsTitle = sans(15, .semibold)
         static let summary = sans(13)
         static let body = sans(13)
@@ -164,7 +184,8 @@ enum DS {
 
     enum Tracking {
         static let title: CGFloat = -0.8
-        static let label: CGFloat = 1.1
+        static let hero: CGFloat = -1.2
+        static let label: CGFloat = 0
     }
 
     // MARK: - Motion (short, no springs)
