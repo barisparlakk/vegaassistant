@@ -6,7 +6,7 @@ func runDoctor() async {
     let settings = SettingsStore(paths: paths).load()
     let resolver = ExecutableResolver(paths: paths)
 
-    print("Morning doctor\n")
+    print("Vega doctor\n")
     print("Tools")
     var claudeURL: URL?
     for (name, override) in [("claude", settings.claudePath), ("git", settings.gitPath), ("gh", settings.ghPath)] {
@@ -28,7 +28,7 @@ func runDoctor() async {
         print("  ✗ claude not found")
     }
     if ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] != nil {
-        print("  ! ANTHROPIC_API_KEY is set here; Morning removes it before calling claude, so the subscription is used.")
+        print("  ! ANTHROPIC_API_KEY is set here; Vega removes it before calling claude, so the subscription is used.")
     }
     print("  Model: \(settings.claudeModel)")
 

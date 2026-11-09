@@ -112,7 +112,7 @@ enum DS {
         /// Text drawn on an accent fill.
         static let onAccent = SwiftUI.Color(hex: 0x0B0C0E)
 
-        static let defaultAccent = SwiftUI.Color(hex: 0xFF9F43)
+        static let defaultAccent = SwiftUI.Color(hex: 0x9B7BFF)
 
         /// Accent readable as text in both modes: the light variant is darkened.
         static func accentInk(_ accent: SwiftUI.Color) -> SwiftUI.Color {

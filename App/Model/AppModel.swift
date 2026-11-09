@@ -30,7 +30,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
 
     var symbol: String {
         switch self {
-        case .today: "sun.horizon"
+        case .today: "sparkle"
         case .history: "clock.arrow.circlepath"
         case .projects: "square.grid.2x2"
         case .news: "newspaper"

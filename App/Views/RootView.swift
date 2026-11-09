@@ -42,13 +42,16 @@ struct RootView: View {
 /// The system sidebar material with the orb, the views and active projects.
 struct SidebarView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accent) private var accent
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.xl) {
                 HStack(spacing: DS.Space.s + DS.Space.xxs) {
-                    AssistantCore(size: DS.Size.brandOrb, isDetailed: false)
-                    Text("Morning")
+                    VegaMarkShape()
+                        .fill(LinearGradient(colors: [.white, accent], startPoint: .top, endPoint: .bottom))
+                        .frame(width: DS.Size.brandOrb, height: DS.Size.brandOrb)
+                    Text("Vega")
                         .font(DS.Font.brand)
                         .foregroundStyle(DS.Color.heading)
                 }

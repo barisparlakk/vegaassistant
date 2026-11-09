@@ -16,7 +16,7 @@ struct MorningApp: App {
     }
 
     var body: some Scene {
-        Window("Morning", id: WindowID.main) {
+        Window("Vega", id: WindowID.main) {
             RootView()
                 .environment(model)
                 .onOpenURL { model.handle($0) }
@@ -41,8 +41,8 @@ struct MorningApp: App {
                 .environment(\.accent, model.accent)
                 .tint(model.accent)
         } label: {
-            Image(systemName: model.isGenerating ? "sun.horizon.circle" : "sun.horizon.fill")
-                .accessibilityLabel("Morning")
+            Image(nsImage: VegaMark.menuBarImage(isWorking: model.isGenerating))
+                .accessibilityLabel("Vega")
         }
         .menuBarExtraStyle(.window)
     }

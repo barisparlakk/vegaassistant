@@ -13,7 +13,7 @@ struct ContextRenderer {
         let facts = result.facts
         var out: [String] = []
         let hours = Int(facts.period.to.timeIntervalSince(facts.period.from) / 3600)
-        out.append("Morning · context at \(facts.period.to.formatted(dayAndTime))")
+        out.append("Vega · context at \(facts.period.to.formatted(dayAndTime))")
         out.append("Window: since \(facts.period.from.formatted(dayAndTime)) (\(hours) h)")
 
         section("Sources", into: &out)

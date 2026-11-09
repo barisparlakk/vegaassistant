@@ -226,6 +226,24 @@ enum VegaMark {
         CGPoint(x: 12, y: 22.5), CGPoint(x: 9.8, y: 14.2), CGPoint(x: 1.5, y: 12), CGPoint(x: 9.8, y: 9.8),
     ]
 
+    /// A template image for the menu bar: the star, hollow while a briefing is being prepared.
+    @MainActor
+    static func menuBarImage(isWorking: Bool) -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            let star = path(in: rect.insetBy(dx: 1, dy: 1))
+            NSColor.black.set()
+            if isWorking {
+                star.lineWidth = 1.3
+                star.stroke()
+            } else {
+                star.fill()
+            }
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+
     static func path(in rect: CGRect) -> NSBezierPath {
         let path = NSBezierPath()
         for (index, point) in points.enumerated() {

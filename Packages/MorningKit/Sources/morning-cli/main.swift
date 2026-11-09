@@ -176,11 +176,11 @@ func handOffToAppIfNeeded(options: Options, env: Environment) async throws -> Bo
         log("Today's briefing already exists. Nothing to do.")
         return true
     }
-    log("\(Date.now.formatted(.iso8601)) Calendar/Reminders access belongs to Morning.app — handing the run to the app.")
+    log("\(Date.now.formatted(.iso8601)) Calendar/Reminders access belongs to Vega.app — handing the run to the app.")
     if await AppHandoff.open(AppHandoff.generateURL(trigger: options.trigger, ifNeeded: options.ifNeeded)) {
         return true
     }
-    log("Couldn't reach Morning.app; generating here without calendar data.")
+    log("Couldn't reach Vega.app; generating here without calendar data.")
     return false
 }
 
