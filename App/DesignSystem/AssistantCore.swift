@@ -1,17 +1,19 @@
 import MetalKit
 import SwiftUI
 
-/// Morning's presence: a real-time 3D glass sphere with a living energy core and orbiting
-/// HUD rings, ray-traced on the GPU (`AssistantCoreShader`). It breathes when idle, quickens
-/// while preparing a briefing, holds steady during a focus block, and leans toward the pointer.
+/// Vega's presence: a real-time 3D crystal star with a living core and orbiting HUD rings,
+/// ray-traced on the GPU (`AssistantCoreShader`). It sways when idle, brightens while it speaks
+/// (flaring on each word), quickens while preparing a briefing, and leans toward the pointer.
 struct AssistantCore: View {
     enum Mood: Equatable {
-        case idle, working, focus
+        case idle, focus, listening, speaking, working
 
         var energy: Float {
             switch self {
             case .idle: 0.35
-            case .focus: 0.6
+            case .focus: 0.5
+            case .listening: 0.6
+            case .speaking: 0.7
             case .working: 1.0
             }
         }
@@ -21,6 +23,8 @@ struct AssistantCore: View {
     var size: CGFloat = DS.Size.orb
     /// Rings and motion. Off for small marks like the sidebar logo.
     var isDetailed = true
+    /// Bumped on every spoken word; each bump makes the star flare briefly.
+    var pulse = 0
 
     @Environment(\.accent) private var accent
     @Environment(\.colorScheme) private var scheme
@@ -35,7 +39,8 @@ struct AssistantCore: View {
                 isDark: scheme == .dark,
                 isDetailed: isDetailed,
                 isAnimated: isDetailed && !reduceMotion,
-                pointer: pointer
+                pointer: pointer,
+                pulse: pulse
             )
         )
         .frame(width: size, height: size)
@@ -93,9 +98,10 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
         var isDetailed: Bool
         var isAnimated: Bool
         var pointer: CGPoint?
+        var pulse: Int
     }
 
-    /// Matches `Uniforms` in the shader (48 bytes).
+    /// Matches `Uniforms` in the shader (64 bytes).
     private struct Uniforms {
         var size: SIMD2<Float>
         var time: Float
@@ -103,6 +109,7 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
         var tilt: SIMD2<Float>
         var dark: Float
         var rings: Float
+        var pulse: Float
         var accent: SIMD4<Float>
     }
 
@@ -114,6 +121,8 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
     private var energy: Float = AssistantCore.Mood.idle.energy
     private var lean = SIMD2<Float>(0, 0)
     private var lastFrame = CACurrentMediaTime()
+    private var lastPulse = 0
+    private var pulseAt: CFTimeInterval = 0
 
     /// Shared across every core on screen; compiled once.
     private static let library: (MTLDevice, MTLLibrary)? = {
@@ -141,6 +150,10 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
 
     func apply(_ newState: State, to view: MTKView) {
         let isFirst = state == nil
+        if newState.pulse != lastPulse {
+            lastPulse = newState.pulse
+            pulseAt = CACurrentMediaTime()
+        }
         state = newState
         if isFirst { energy = newState.mood.energy }
         view.isPaused = !newState.isAnimated
@@ -184,6 +197,7 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
             tilt: sway + lean,
             dark: state.isDark ? 1 : 0,
             rings: state.isDetailed ? 1 : 0,
+            pulse: state.isAnimated ? Float(exp(-(now - pulseAt) * 5)) : 0,
             accent: state.accent
         )
         encoder.setRenderPipelineState(pipeline)
@@ -195,12 +209,38 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
     }
 }
 
-/// If Metal isn't available: a plain warm sphere.
+/// If Metal isn't available: the flat star mark.
 private final class FallbackOrbView: NSView {
     override func draw(_ dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: bounds.width * 0.22, dy: bounds.height * 0.22)
-        let gradient = NSGradient(colors: [NSColor(white: 1, alpha: 0.9), NSColor.systemOrange])
-        gradient?.draw(in: NSBezierPath(ovalIn: rect), relativeCenterPosition: NSPoint(x: -0.3, y: 0.3))
+        let path = VegaMark.path(in: bounds.insetBy(dx: bounds.width * 0.2, dy: bounds.height * 0.2))
+        NSColor.controlAccentColor.setFill()
+        path.fill()
+    }
+}
+
+/// Vega's flat star mark (the logo), as a path in any rect.
+enum VegaMark {
+    /// Points of the four-point star in a 24×24 box: tips at the edges, inner corners near the middle.
+    private static let points: [CGPoint] = [
+        CGPoint(x: 12, y: 1.5), CGPoint(x: 14.2, y: 9.8), CGPoint(x: 22.5, y: 12), CGPoint(x: 14.2, y: 14.2),
+        CGPoint(x: 12, y: 22.5), CGPoint(x: 9.8, y: 14.2), CGPoint(x: 1.5, y: 12), CGPoint(x: 9.8, y: 9.8),
+    ]
+
+    static func path(in rect: CGRect) -> NSBezierPath {
+        let path = NSBezierPath()
+        for (index, point) in points.enumerated() {
+            let mapped = CGPoint(x: rect.minX + point.x / 24 * rect.width, y: rect.minY + point.y / 24 * rect.height)
+            if index == 0 { path.move(to: mapped) } else { path.line(to: mapped) }
+        }
+        path.close()
+        return path
+    }
+}
+
+/// The flat star mark for SwiftUI.
+struct VegaMarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path(VegaMark.path(in: rect).cgPath)
     }
 }
 
