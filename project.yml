@@ -1,0 +1,103 @@
+name: Morning
+options:
+  bundleIdPrefix: com.barisparlak
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # Personal, locally-built app. Set DEVELOPMENT_TEAM to sign with your Apple ID so
+    # macOS keeps Calendar/Reminders permission across rebuilds.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+
+packages:
+  MorningKit:
+    path: Packages/MorningKit
+  MarkdownUI:
+    url: https://github.com/gonzalezreal/swift-markdown-ui
+    from: "2.4.1"
+
+targets:
+  Morning:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+    dependencies:
+      - package: MorningKit
+        product: MorningKit
+      - package: MarkdownUI
+      - target: morning-cli
+        embed: true
+        copy:
+          destination: executables
+    info:
+      path: App/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Morning
+        CFBundleName: Morning
+        LSApplicationCategoryType: public.app-category.productivity
+        LSMinimumSystemVersion: "15.0"
+        NSHumanReadableCopyright: ""
+        NSCalendarsFullAccessUsageDescription: Morning reads today's events to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
+        NSRemindersFullAccessUsageDescription: Morning reads reminders due today to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.barisparlak.Morning
+            CFBundleURLSchemes: [morning]
+    entitlements:
+      path: App/Resources/Morning.entitlements
+      properties:
+        # Not sandboxed: Morning reads ~/.claude, runs git/gh/claude and manages a LaunchAgent.
+        com.apple.security.app-sandbox: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.barisparlak.Morning
+        PRODUCT_NAME: Morning
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_PREVIEWS: YES
+        COMBINE_HIDPI_IMAGES: YES
+
+  morning-cli:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/MorningKit/Sources/morning-cli
+    dependencies:
+      - package: MorningKit
+        product: MorningKit
+    settings:
+      base:
+        PRODUCT_NAME: morning-cli
+        PRODUCT_BUNDLE_IDENTIFIER: com.barisparlak.Morning.cli
+        INFOPLIST_FILE: Support/cli-Info.plist
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        ENABLE_HARDENED_RUNTIME: NO
+
+schemes:
+  Morning:
+    build:
+      targets:
+        Morning: all
+        morning-cli: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.barisparlak.Morning.cli</string>
+	<key>CFBundleName</key>
+	<string>Morning Scheduler</string>
+	<key>CFBundleDisplayName</key>
+	<string>Morning Scheduler</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Morning reads today's events to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Morning reads reminders due today to build your daily briefing. Nothing leaves your Mac except the summary sent to Claude.</string>
+</dict>
+</plist>
