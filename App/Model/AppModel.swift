@@ -69,6 +69,9 @@ final class AppModel {
     var lastError: String?
     var settings = MorningSettings()
     var system = SystemStatus()
+    /// Vega's voice and interface sounds.
+    let voice = VegaVoice()
+    @ObservationIgnored let sounds = VegaSounds()
     /// Shown as an alert in Settings when installing the scheduler or hook fails.
     var settingsError: String?
     @ObservationIgnored private var rescheduleTask: Task<Void, Never>?
@@ -202,6 +205,7 @@ final class AppModel {
                     today = .loaded(briefing)
                     generation = nil
                 }
+                sounds.play(.ready)
                 await notifyIfBackground(briefing, force: trigger == .scheduled)
                 system = await service.systemStatus()
                 system.notificationsAllowed = await notificationStatus()
@@ -317,15 +321,66 @@ final class AppModel {
 
     func startBlock(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
         withAnimation(DS.Motion.fast) {
-            if focusBlock?.taskKey == task.checkKey { focusBlock = nil; return }
+            if focusBlock?.taskKey == task.checkKey {
+                focusBlock = nil
+                sounds.play(.focusEnd)
+                return
+            }
             // Done or skipped tasks don't get a block.
             guard !isChecked(task, in: briefingID), !isSkipped(task, in: briefingID) else { return }
             focusBlock = FocusBlock(briefingID: briefingID, taskKey: task.checkKey, title: task.title, startedAt: .now)
+            sounds.play(.focusStart)
         }
     }
 
+    // MARK: Voice
+
+    static let speakOnOpenKey = "vega.speakOnOpen"
+    static let mutedKey = "vega.muted"
+    private static let spokenKey = "vega.spokenBriefingID"
+
+    var speaksOnOpen: Bool = UserDefaults.standard.object(forKey: AppModel.speakOnOpenKey) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(speaksOnOpen, forKey: Self.speakOnOpenKey) }
+    }
+
+    var isMuted: Bool = UserDefaults.standard.bool(forKey: AppModel.mutedKey) {
+        didSet {
+            UserDefaults.standard.set(isMuted, forKey: Self.mutedKey)
+            if isMuted { voice.stop() }
+        }
+    }
+
+    /// Vega's script for a briefing, with today's news.
+    func script(for briefing: Briefing, isToday: Bool) -> [VegaLine] {
+        VegaScript.lines(for: briefing, news: newsPreview(for: briefing.id), isToday: isToday)
+    }
+
+    /// Speaks today's briefing the first time it's opened (once per briefing), or shows it.
+    func presentToday(_ briefing: Briefing) {
+        let lines = script(for: briefing, isToday: true)
+        // Already showing (or saying) exactly this.
+        guard voice.lines != lines else { return }
+        let alreadySpoken = UserDefaults.standard.string(forKey: Self.spokenKey) == briefing.id
+        if !alreadySpoken, speaksOnOpen, !isMuted {
+            UserDefaults.standard.set(briefing.id, forKey: Self.spokenKey)
+            sounds.play(.wake)
+            voice.speak(lines)
+        } else {
+            voice.speak(lines, silently: true)
+        }
+    }
+
+    /// Plays today's briefing from the top (the Replay button).
+    func speakAgain(_ briefing: Briefing) {
+        if isMuted { isMuted = false }
+        sounds.play(.wake)
+        voice.speak(script(for: briefing, isToday: true))
+    }
+
     func stopBlock() {
+        guard focusBlock != nil else { return }
         withAnimation(DS.Motion.fast) { focusBlock = nil }
+        sounds.play(.focusEnd)
     }
 
     func isSkipped(_ task: GeneratedBriefing.FocusTask, in briefingID: String) -> Bool {
@@ -369,6 +424,7 @@ final class AppModel {
 
     func toggle(_ task: GeneratedBriefing.FocusTask, in briefingID: String) {
         let checked = !isChecked(task, in: briefingID)
+        if checked { sounds.play(.done) }
         withAnimation(DS.Motion.fast) {
             if checked {
                 checkedKeys[briefingID, default: []].insert(task.checkKey)
