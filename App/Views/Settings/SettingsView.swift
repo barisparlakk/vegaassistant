@@ -1,24 +1,28 @@
 import AppKit
-import ServiceManagement
 import MorningKit
+import ServiceManagement
 import SwiftUI
 
+/// Settings as console panels: general, sources, claude, news, automation, data.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Form {
-            GeneralSettings()
-            SourcesSettings()
-            ClaudeSettings()
-            Section("News") { NewsSettingsSection() }
-            AutomationSettings()
-            DataSettings()
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
+                Panel("general") { GeneralSettings() }
+                Panel("sources") { SourcesSettings() }
+                Panel("claude") { ClaudeSettings() }
+                Panel("news") { NewsSettingsSection() }
+                Panel("automation") { AutomationSettings() }
+                Panel("data") { DataSettings() }
+            }
+            .padding(.horizontal, DS.Space.pageSide)
+            .padding(.vertical, DS.Space.pageTop)
+            .frame(maxWidth: DS.Size.contentMaxWidth)
+            .frame(maxWidth: .infinity)
         }
-        .formStyle(.grouped)
         .scrollContentBackground(.hidden)
-        .background(ConsoleBackdrop())
-        .navigationTitle("Settings")
         .alert("Couldn't change that", isPresented: Binding(
             get: { model.settingsError != nil },
             set: { if !$0 { model.settingsError = nil } }
@@ -35,33 +39,54 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
 
+    /// Preset accents; the picker allows any color.
+    static let presets: [(name: String, hex: UInt32)] = [
+        ("amber", 0xFFB547), ("cyan", 0x5CC8FF), ("violet", 0xB48CFF), ("rose", 0xFF7AA2), ("lime", 0xC6F26B), ("paper", 0xE8E6E1),
+    ]
+
     var body: some View {
-        Section("General") {
-            DatePicker("Daily briefing at", selection: briefingTime, displayedComponents: .hourAndMinute)
-            LoginItemToggle()
-            LabeledContent("Accent color") {
-                HStack(spacing: Spacing.s) {
-                    ForEach(AccentChoice.allCases) { choice in
-                        let isSelected = AccentChoice(hex: model.settings.accentColorHex) == choice
+        VStack(spacing: 0) {
+            SettingRow("daily briefing at", detail: "The scheduler runs then; launchd catches up after sleep.") {
+                DatePicker("Daily briefing at", selection: briefingTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                    .datePickerStyle(.field)
+            }
+            RowDivider()
+            SettingRow("open at login", detail: "Keeps the menu bar item around.") {
+                LoginItemToggle()
+            }
+            RowDivider()
+            SettingRow("accent") {
+                HStack(spacing: DS.Space.s) {
+                    ForEach(Self.presets, id: \.hex) { preset in
+                        let color = Color(hex: preset.hex)
+                        let isSelected = model.settings.accentColorHex?.uppercased() == color.hexString?.uppercased()
+                            || (model.settings.accentColorHex == nil && preset.hex == 0xFFB547)
                         Button {
-                            withAnimation(Motion.snappy) {
-                                model.updateSettings { $0.accentColorHex = choice.rawValue }
-                            }
+                            model.updateSettings { $0.accentColorHex = color.hexString }
                         } label: {
                             Circle()
-                                .fill(choice.color)
-                                .frame(width: Metrics.checkbox, height: Metrics.checkbox)
+                                .fill(color)
+                                .frame(width: DS.Size.accentSwatch, height: DS.Size.accentSwatch)
                                 .overlay {
                                     Circle()
-                                        .strokeBorder(Palette.textPrimary.opacity(isSelected ? 0.8 : 0), lineWidth: Metrics.rule)
-                                        .padding(-Spacing.xs)
+                                        .strokeBorder(DS.Color.heading.opacity(isSelected ? 0.9 : 0), lineWidth: DS.Size.hairline * 2)
+                                        .padding(-DS.Space.xs + 1)
                                 }
                         }
                         .buttonStyle(.plain)
-                        .help(choice.title)
-                        .accessibilityLabel(choice.title)
-                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        .help(preset.name)
+                        .accessibilityLabel(preset.name)
+                        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
                     }
+                    ColorPicker("Custom accent", selection: Binding(
+                        get: { model.accent },
+                        set: { color in model.updateSettings { $0.accentColorHex = color.hexString } }
+                    ), supportsOpacity: false)
+                    .labelsHidden()
+                    Text(model.settings.accentColorHex?.lowercased() ?? "#ffb547")
+                        .font(DS.Font.metaSmall)
+                        .foregroundStyle(DS.Color.dim)
                 }
             }
         }
@@ -81,74 +106,111 @@ private struct GeneralSettings: View {
     }
 }
 
+/// "Open at login" through ServiceManagement. macOS may hold a new login item for approval;
+/// the row says so and links to the right pane.
+struct LoginItemToggle: View {
+    @State private var status = SMAppService.mainApp.status
+    @State private var error: String?
+
+    var body: some View {
+        HStack(spacing: DS.Space.s) {
+            if status == .requiresApproval {
+                Button("approve in login items") { SMAppService.openSystemSettingsLoginItems() }
+                    .buttonStyle(.consoleGhost)
+            }
+            if let error {
+                Text(error).font(DS.Font.metaSmall).foregroundStyle(DS.Color.failed).lineLimit(1)
+            }
+            Toggle("Open at login", isOn: Binding(get: { status == .enabled || status == .requiresApproval }, set: set))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            status = SMAppService.mainApp.status
+        }
+    }
+
+    private func set(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            error = nil
+        } catch {
+            self.error = error.localizedDescription
+        }
+        status = SMAppService.mainApp.status
+        if on, status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+    }
+}
+
 // MARK: - Sources
 
 private struct SourcesSettings: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Section {
+        VStack(spacing: 0) {
+            SettingRow("repository folders", detail: "Searched for git repositories.") {
+                Button("+ add folder", action: addFolder).buttonStyle(.consoleOutline)
+            }
             ForEach(model.settings.repoRoots, id: \.self) { root in
-                HStack {
-                    Image(systemName: "folder")
-                        .foregroundStyle(.tint)
-                    Text(root).font(Typography.mono)
+                HStack(spacing: DS.Space.s) {
+                    Text(root).font(DS.Font.meta).foregroundStyle(DS.Color.text)
                     Spacer()
-                    Button {
+                    IconButton(symbol: "xmark", help: "Remove \(root)") {
                         model.updateSettings { $0.repoRoots.removeAll { $0 == root } }
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .foregroundStyle(Palette.textTertiary)
                     }
-                    .buttonStyle(.borderless)
-                    .help("Remove")
+                }
+                .padding(.horizontal, DS.Space.rowHorizontal + DS.Space.l)
+                .padding(.vertical, DS.Space.xs)
+            }
+            RowDivider()
+            SettingRow("search depth") {
+                Stepper(value: Binding(
+                    get: { model.settings.scanDepth },
+                    set: { value in model.updateSettings { $0.scanDepth = value } }
+                ), in: 1...6) {
+                    Text("\(model.settings.scanDepth) levels").font(DS.Font.meta).foregroundStyle(DS.Color.text)
                 }
             }
-            Button("Add folder…", systemImage: "plus", action: addFolder)
-            Stepper("Search \(model.settings.scanDepth) levels deep", value: Binding(
-                get: { model.settings.scanDepth },
-                set: { value in model.updateSettings { $0.scanDepth = value } }
-            ), in: 1...6)
-            Toggle("Also include folders where you used Claude Code", isOn: Binding(
-                get: { model.settings.discoverFromClaudeSessions },
-                set: { value in model.updateSettings { $0.discoverFromClaudeSessions = value } }
-            ))
-        } header: {
-            Text("Repository folders")
-        } footer: {
-            Text("Morning looks for git repositories inside these folders.")
-        }
-
-        Section("Sources") {
+            RowDivider()
+            SettingRow("include claude code folders", detail: "Also look where you ran Claude Code sessions.") {
+                switchToggle("Include Claude Code folders", isOn: Binding(
+                    get: { model.settings.discoverFromClaudeSessions },
+                    set: { value in model.updateSettings { $0.discoverFromClaudeSessions = value } }
+                ))
+            }
+            RowDivider()
             ForEach(CollectorKind.collected) { kind in
-                Toggle(isOn: Binding(
-                    get: { model.settings.isEnabled(kind) },
-                    set: { on in model.updateSettings { if on { $0.enabledCollectors.insert(kind) } else { $0.enabledCollectors.remove(kind) } } }
-                )) {
-                    Label(kind.displayName, systemImage: kind.symbolName)
+                SettingRow(kind.displayName.lowercased()) {
+                    switchToggle(kind.displayName, isOn: Binding(
+                        get: { model.settings.isEnabled(kind) },
+                        set: { on in model.updateSettings { if on { $0.enabledCollectors.insert(kind) } else { $0.enabledCollectors.remove(kind) } } }
+                    ))
                 }
+                RowDivider()
             }
-        }
-
-        Section {
-            PermissionRow(title: "Calendar", access: model.system.calendarAccess, request: model.requestCalendarAccess)
+            SettingRow("calendar access") { AccessControl(access: model.system.calendarAccess, request: model.requestCalendarAccess, pane: "Privacy_Calendars") }
             if model.system.calendarAccess.isGranted {
                 ForEach(model.system.calendars) { source in
-                    Toggle(isOn: calendarBinding(source.id)) {
-                        HStack(spacing: Spacing.s) {
-                            Circle().fill(Color(hex: source.colorHex) ?? .accentColor)
-                                .frame(width: Metrics.timelineNode, height: Metrics.timelineNode)
-                            Text(source.title)
-                            Text(source.account).foregroundStyle(Palette.textTertiary)
-                        }
+                    HStack(spacing: DS.Space.s) {
+                        Circle().fill(Color(hex: source.colorHex) ?? DS.Color.dim).frame(width: DS.Size.dot, height: DS.Size.dot)
+                        Text(source.title.lowercased()).font(DS.Font.meta).foregroundStyle(DS.Color.text)
+                        Text(source.account.lowercased()).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
+                        Spacer()
+                        switchToggle(source.title, isOn: calendarBinding(source.id))
                     }
+                    .padding(.horizontal, DS.Space.rowHorizontal + DS.Space.l)
+                    .padding(.vertical, DS.Space.xs)
                 }
+                Text("all off = every calendar")
+                    .font(DS.Font.metaSmall)
+                    .foregroundStyle(DS.Color.dim)
+                    .padding(.horizontal, DS.Space.rowHorizontal + DS.Space.l)
+                    .padding(.bottom, DS.Space.s)
             }
-            PermissionRow(title: "Reminders", access: model.system.remindersAccess, request: model.requestRemindersAccess)
-        } header: {
-            Text("Calendars")
-        } footer: {
-            Text("Leave all calendars off to include every one.")
+            RowDivider()
+            SettingRow("reminders access") { AccessControl(access: model.system.remindersAccess, request: model.requestRemindersAccess, pane: "Privacy_Reminders") }
         }
     }
 
@@ -176,29 +238,32 @@ private struct SourcesSettings: View {
     }
 }
 
-struct PermissionRow: View {
-    let title: String
+/// `granted` / `allow access` / `open system settings`
+private struct AccessControl: View {
     let access: EventKitAccess
     let request: () -> Void
+    let pane: String
 
     var body: some View {
-        LabeledContent(title) {
-            switch access {
-            case .granted:
-                Label("Allowed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(Palette.success)
-            case .notDetermined:
-                Button("Allow access…", action: request)
-            case .denied, .restricted, .writeOnly:
-                HStack {
-                    Text(access.explanation).foregroundStyle(Palette.textSecondary).lineLimit(1)
-                    Button("Open System Settings") {
-                        Opener.url("x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
-                    }
-                }
+        switch access {
+        case .granted:
+            StatusTag(kind: .custom("GRANTED", DS.Color.ok))
+        case .notDetermined:
+            Button("allow access", action: request).buttonStyle(.consoleOutline)
+        case .denied, .restricted, .writeOnly:
+            Button("open system settings") {
+                Opener.url("x-apple.systempreferences:com.apple.preference.security?\(pane)")
             }
+            .buttonStyle(.consoleOutline)
         }
     }
+}
+
+private func switchToggle(_ label: String, isOn: Binding<Bool>) -> some View {
+    Toggle(label, isOn: isOn)
+        .labelsHidden()
+        .toggleStyle(.switch)
+        .controlSize(.small)
 }
 
 // MARK: - Claude
@@ -208,63 +273,68 @@ private struct ClaudeSettings: View {
     static let models = ["sonnet", "opus", "haiku"]
 
     var body: some View {
-        Section {
-            Picker("Model", selection: Binding(
-                get: { model.settings.claudeModel },
-                set: { value in model.updateSettings { $0.claudeModel = value } }
-            )) {
-                ForEach(Self.models + (Self.models.contains(model.settings.claudeModel) ? [] : [model.settings.claudeModel]), id: \.self) { name in
-                    Text(name.capitalized).tag(name)
-                }
-            }
-
-            LabeledContent("Claude Code") {
-                VStack(alignment: .trailing, spacing: Spacing.xxs) {
-                    if let path = model.system.claudePath {
-                        Label(path, systemImage: model.system.claudeSignedIn == false ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                            .font(Typography.mono)
-                            .foregroundStyle(model.system.claudeSignedIn == false ? Palette.medium : Palette.success)
-                        if model.system.claudeSignedIn == false {
-                            Text("Not signed in — run `claude auth login` in Terminal")
-                                .font(Typography.caption)
-                                .foregroundStyle(Palette.textSecondary)
-                        }
-                    } else {
-                        Label("Not found", systemImage: "xmark.circle.fill").foregroundStyle(Palette.high)
+        VStack(spacing: 0) {
+            SettingRow("model", detail: "Passed to claude -p --model.") {
+                HStack(spacing: DS.Space.xs) {
+                    ForEach(Self.models, id: \.self) { name in
+                        let isSelected = model.settings.claudeModel == name
+                        Button(name) { model.updateSettings { $0.claudeModel = name } }
+                            .buttonStyle(ConsoleButtonStyle(kind: isSelected ? .primary : .outline))
                     }
                 }
             }
-
-            LabeledContent("Custom path") {
-                TextField("Custom path", text: Binding(
+            RowDivider()
+            SettingRow("claude code", detail: model.system.claudeSignedIn == false ? "Not signed in — run `claude auth login` in Terminal." : nil) {
+                HStack(spacing: DS.Space.s) {
+                    Text(model.system.claudePath ?? "not found")
+                        .font(DS.Font.meta)
+                        .foregroundStyle(model.system.claudePath == nil ? DS.Color.failed : DS.Color.text)
+                    if model.system.claudePath != nil {
+                        StatusTag(kind: model.system.claudeSignedIn == false ? .failed : .custom("SIGNED IN", DS.Color.ok))
+                    }
+                }
+            }
+            RowDivider()
+            SettingRow("custom path", detail: "Leave empty to detect ~/.local/bin, Homebrew, npm and your shell.") {
+                TextField("detected automatically", text: Binding(
                     get: { model.settings.claudePath ?? "" },
                     set: { value in model.updateSettings { $0.claudePath = value.isEmpty ? nil : value } }
-                ), prompt: Text("Detected automatically"))
-                .font(Typography.mono)
-                .labelsHidden()
+                ))
+                .textFieldStyle(.plain)
+                .font(DS.Font.meta)
                 .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 320)
                 .onSubmit(model.refreshSystemStatus)
             }
-
-            VStack(alignment: .leading, spacing: Spacing.s) {
-                Text("Extra instructions")
+            RowDivider()
+            VStack(alignment: .leading, spacing: DS.Space.s) {
+                Text("extra instructions").font(DS.Font.meta).foregroundStyle(DS.Color.text)
                 Text("Added to every briefing prompt — tone, language, priorities.")
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.textSecondary)
+                    .font(DS.Font.small)
+                    .foregroundStyle(DS.Color.dim)
                 TextEditor(text: Binding(
                     get: { model.settings.extraInstructions },
                     set: { value in model.updateSettings { $0.extraInstructions = value } }
                 ))
-                .font(Typography.body)
-                .frame(minHeight: Metrics.glyphLarge * 2)
+                .font(DS.Font.small)
+                .foregroundStyle(DS.Color.text)
                 .scrollContentBackground(.hidden)
-                .padding(Spacing.s)
-                .background(Palette.surfaceSunken, in: RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
+                .frame(minHeight: DS.Size.statusBarHeight * 1.6)
+                .padding(DS.Space.s)
+                .background(DS.Color.background, in: RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
+                        .strokeBorder(DS.Color.border, lineWidth: DS.Size.hairline)
+                }
             }
-        } header: {
-            Text("Claude")
-        } footer: {
-            Text("Briefings run `claude -p` with your Claude subscription. Morning never uses an API key.")
+            .padding(.horizontal, DS.Space.rowHorizontal)
+            .padding(.vertical, DS.Space.m)
+            Text("briefings run claude -p on your subscription; morning never uses an api key")
+                .font(DS.Font.metaSmall)
+                .foregroundStyle(DS.Color.dim)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DS.Space.rowHorizontal)
+                .padding(.bottom, DS.Space.m)
         }
     }
 }
@@ -273,119 +343,71 @@ private struct ClaudeSettings: View {
 
 private struct AutomationSettings: View {
     @Environment(AppModel.self) private var model
+    @State private var showsSnippet = false
 
     var body: some View {
-        Section("Automation") {
-            InstallRow(
-                title: "Scheduled briefing",
-                detail: "A LaunchAgent runs Morning at \(String(format: "%02d:%02d", model.settings.briefingHour, model.settings.briefingMinute)) and catches up after sleep.",
-                symbol: "alarm",
-                isInstalled: model.system.launchAgentInstalled,
-                toggle: model.setLaunchAgentInstalled
-            )
-            InstallRow(
-                title: "Claude Code Stop hook",
-                detail: "Logs when each Claude Code session finishes. Merged into ~/.claude/settings.json with a backup.",
-                symbol: "flag.checkered",
-                isInstalled: model.system.hookInstalled,
-                toggle: model.setHookInstalled
-            )
-            LabeledContent("Notifications") {
+        VStack(spacing: 0) {
+            SettingRow(
+                "scheduled briefing",
+                detail: "LaunchAgent at \(String(format: "%02d:%02d", model.settings.briefingHour, model.settings.briefingMinute)); catches up after sleep."
+            ) {
+                InstallControl(isInstalled: model.system.launchAgentInstalled, toggle: model.setLaunchAgentInstalled)
+            }
+            RowDivider()
+            SettingRow("claude code stop hook", detail: "Logs when sessions finish. Merged into ~/.claude/settings.json with a backup.") {
+                InstallControl(isInstalled: model.system.hookInstalled, toggle: model.setHookInstalled)
+            }
+            RowDivider()
+            SettingRow("notifications", detail: "\"Your morning briefing is ready\" — click to open today.") {
                 switch model.system.notificationsAllowed {
-                case true?:
-                    Label("On", systemImage: "bell.badge").foregroundStyle(Palette.success)
-                case false?:
-                    Button("Turn on in System Settings…", action: model.requestNotifications)
-                case nil:
-                    Button("Allow notifications…", action: model.requestNotifications)
+                case true?: StatusTag(kind: .custom("ON", DS.Color.ok))
+                case false?: Button("turn on in system settings", action: model.requestNotifications).buttonStyle(.consoleOutline)
+                case nil: Button("allow", action: model.requestNotifications).buttonStyle(.consoleOutline)
                 }
             }
-            DisclosureGroup("Add the hook by hand") {
-                Text(HookInstaller(paths: MorningPaths()).settingsSnippet)
-                    .font(Typography.mono)
-                    .textSelection(.enabled)
-                    .padding(Spacing.s)
+            RowDivider()
+            Button {
+                withAnimation(DS.Motion.standard) { showsSnippet.toggle() }
+            } label: {
+                Text(showsSnippet ? "▾ add the hook by hand" : "▸ add the hook by hand")
+                    .font(DS.Font.metaSmall)
+                    .foregroundStyle(DS.Color.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Palette.surfaceSunken, in: RoundedRectangle(cornerRadius: Radius.s, style: .continuous))
+                    .contentShape(Rectangle())
             }
-            .font(Typography.caption)
+            .buttonStyle(.plain)
+            .padding(.horizontal, DS.Space.rowHorizontal)
+            .padding(.vertical, DS.Space.m)
+            if showsSnippet {
+                Text(HookInstaller(paths: MorningPaths()).settingsSnippet)
+                    .font(DS.Font.metaSmall)
+                    .foregroundStyle(DS.Color.text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DS.Space.m)
+                    .background(DS.Color.background, in: RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous))
+                    .padding(.horizontal, DS.Space.rowHorizontal)
+                    .padding(.bottom, DS.Space.m)
+                    .transition(.opacity)
+            }
         }
     }
 }
 
-/// "Open at login" through ServiceManagement, so the menu bar item is always there.
-/// macOS may hold a new login item for approval; the row says so and links to the right pane.
-struct LoginItemToggle: View {
-    @State private var status = SMAppService.mainApp.status
-    @State private var error: String?
-
-    var body: some View {
-        Toggle(isOn: Binding(get: { status == .enabled || status == .requiresApproval }, set: set)) {
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text("Open at login")
-                if status == .requiresApproval {
-                    HStack(spacing: Spacing.s) {
-                        Text("Waiting for your approval in Login Items.")
-                            .font(Typography.caption)
-                            .foregroundStyle(Palette.medium)
-                        Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
-                            .buttonStyle(.link)
-                            .font(Typography.caption)
-                    }
-                }
-                if let error {
-                    Text(error).font(Typography.caption).foregroundStyle(Palette.high)
-                }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            status = SMAppService.mainApp.status
-        }
-    }
-
-    private func set(_ on: Bool) {
-        do {
-            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-            error = nil
-        } catch {
-            self.error = error.localizedDescription
-        }
-        status = SMAppService.mainApp.status
-        if on, status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
-    }
-}
-
-struct InstallRow: View {
-    let title: String
-    let detail: String
-    let symbol: String
+/// `INSTALLED [uninstall]` or `[install]`
+private struct InstallControl: View {
     let isInstalled: Bool
     let toggle: (Bool) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.m) {
-            Image(systemName: symbol)
-                .font(.system(size: Metrics.iconMedium))
-                .foregroundStyle(.tint)
-                .frame(width: Metrics.glyphMedium)
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                HStack(spacing: Spacing.s) {
-                    Text(title)
-                    if isInstalled {
-                        Pill(text: "Installed", symbol: "checkmark", tint: Palette.success)
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                Text(detail)
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: DS.Space.s) {
+            if isInstalled {
+                StatusTag(kind: .custom("INSTALLED", DS.Color.ok))
+                Button("uninstall") { toggle(false) }.buttonStyle(.consoleGhost)
+            } else {
+                Button("install") { toggle(true) }.buttonStyle(.consolePrimary)
             }
-            Spacer()
-            Button(isInstalled ? "Uninstall" : "Install") { toggle(!isInstalled) }
-                .glassButtonStyle(prominent: !isInstalled)
         }
-        .padding(.vertical, Spacing.xxs)
     }
 }
 
@@ -395,18 +417,18 @@ private struct DataSettings: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Section {
-            LabeledContent("Briefings saved", value: "\(model.system.briefingCount)")
-            HStack {
-                Button("Open data folder", systemImage: "folder", action: model.openDataFolder)
-                Button("Open logs", systemImage: "doc.text.magnifyingglass") {
-                    Opener.finder(MorningPaths().logs.path)
-                }
+        VStack(spacing: 0) {
+            SettingRow("briefings saved", detail: "Everything stays in ~/Library/Application Support/Morning. No telemetry.") {
+                Text("\(model.system.briefingCount)").font(DS.Font.meta).foregroundStyle(DS.Color.text)
             }
-        } header: {
-            Text("Data")
-        } footer: {
-            Text("Everything stays on this Mac in ~/Library/Application Support/Morning. No telemetry.")
+            RowDivider()
+            HStack(spacing: DS.Space.s) {
+                Button("open data folder", action: model.openDataFolder).buttonStyle(.consoleOutline)
+                Button("open logs") { Opener.finder(MorningPaths().logs.path) }.buttonStyle(.consoleOutline)
+                Spacer()
+            }
+            .padding(.horizontal, DS.Space.rowHorizontal)
+            .padding(.vertical, DS.Space.m)
         }
     }
 }
@@ -414,6 +436,8 @@ private struct DataSettings: View {
 #Preview("Settings") {
     SettingsView()
         .environment(AppModel.preview())
-        .tint(AccentChoice.sunrise.color)
-        .frame(width: 760, height: 1100)
+        .environment(\.accent, DS.Color.defaultAccent)
+        .frame(width: 1000, height: 1600)
+        .background(ConsoleBackdrop())
+        .preferredColorScheme(.dark)
 }

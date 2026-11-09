@@ -9,6 +9,8 @@ struct NewsRow: View {
     let isSaved: Bool
     let isSelected: Bool
     var compact = false
+    /// Hide the source · age column (narrow places like the menu bar).
+    var showsMeta = true
     let open: () -> Void
     @State private var isHovered = false
     @Environment(\.accent) private var accent
@@ -37,6 +39,7 @@ struct NewsRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if showsMeta {
                 VStack(alignment: .trailing, spacing: DS.Space.xs) {
                     Text(meta)
                         .font(DS.Font.metaSmall)
@@ -45,6 +48,7 @@ struct NewsRow: View {
                     if isSaved {
                         Text("SAVED").font(DS.Font.tag).foregroundStyle(DS.Color.accentInk(accent))
                     }
+                }
                 }
             }
             .padding(.horizontal, DS.Space.rowHorizontal)

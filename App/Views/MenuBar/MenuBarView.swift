@@ -2,182 +2,173 @@ import AppKit
 import MorningKit
 import SwiftUI
 
-/// Compact briefing in the menu bar: focus, next event, regenerate.
+/// Menu bar popover: priority, next event, top 3 news, regenerate.
 struct MenuBarView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accent) private var accent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
+        VStack(alignment: .leading, spacing: 0) {
             header
-
-            if let generation = model.generation {
-                VStack(alignment: .leading, spacing: Spacing.s) {
-                    Text(generation.phase)
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.textSecondary)
-                    ProgressView(value: generation.completedFraction)
+            RowDivider()
+            Group {
+                if model.isGenerating {
+                    SkeletonRows(count: 3)
+                } else if let briefing = model.currentBriefing, let generated = briefing.structured {
+                    priority(briefing: briefing, generated: generated)
+                    if let event = nextEvent(in: briefing) {
+                        RowDivider()
+                        NextEventLine(event: event)
+                    }
+                    let news = model.newsPreview(for: briefing.id)
+                    if !news.isEmpty {
+                        RowDivider()
+                        VStack(alignment: .leading, spacing: 0) {
+                            SectionLabel("news")
+                                .padding(.horizontal, DS.Space.rowHorizontal)
+                                .padding(.top, DS.Space.s)
+                            ForEach(Array(news.enumerated()), id: \.element.id) { index, item in
+                                NewsRow(index: index + 1, item: item, isRead: model.isRead(item), isSaved: model.isSaved(item), isSelected: false, compact: true, showsMeta: false) {
+                                    model.openNews(item)
+                                }
+                            }
+                        }
+                    }
+                } else if model.currentBriefing != nil {
+                    ConsoleMessage(text: "today's briefing is text — open morning to read it")
+                } else {
+                    ConsoleMessage(text: "no briefing for today")
                 }
-                .padding(Spacing.m)
-                .cardSurface(radius: Radius.m)
-            } else if let briefing = model.currentBriefing, let generated = briefing.structured {
-                MenuBarFocus(briefing: briefing, focus: generated.focus)
-                if let event = nextEvent(in: briefing) {
-                    NextEventRow(event: event)
-                }
-            } else if model.currentBriefing != nil {
-                Text("Today's briefing is shown as text — open Morning to read it.")
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.textSecondary)
-            } else {
-                Text("No briefing yet today.")
-                    .font(Typography.body)
-                    .foregroundStyle(Palette.textSecondary)
             }
-
             if let error = model.lastError {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.medium)
-                    .lineLimit(3)
+                RowDivider()
+                ConsoleMessage(text: "last run failed: \(error.lowercased())", tone: DS.Color.failed)
+                    .lineLimit(2)
             }
-
-            HStack(spacing: Spacing.s) {
-                Button {
-                    model.regenerate()
-                } label: {
-                    Label(model.isGenerating ? "Generating…" : "Regenerate", systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .glassButtonStyle()
-                .disabled(model.isGenerating)
-
-                Button {
-                    model.selection = .today
-                    openWindow(id: WindowID.main)
-                    NSApp.activate()
-                } label: {
-                    Label("Open Morning", systemImage: "macwindow")
-                        .frame(maxWidth: .infinity)
-                }
-                .glassButtonStyle(prominent: true)
-            }
-            .controlSize(.large)
+            RowDivider()
+            actions
         }
-        .padding(Spacing.l)
-        .frame(width: Metrics.menuBarWidth)
+        .frame(width: DS.Size.menuBarWidth)
+        .background(DS.Color.background)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            Text(Format.overline(.now))
-                .font(Typography.overline)
-                .tracking(1.1)
-                .foregroundStyle(.tint)
-            if let headline = model.currentBriefing?.structured?.headline {
-                Text(headline)
-                    .font(Typography.menuBarTitle)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(Format.greeting()).font(Typography.menuBarTitle)
+        HStack(spacing: DS.Space.s) {
+            Text("MORNING").font(DS.Font.brand).foregroundStyle(DS.Color.heading)
+            Text(Format.consoleDate(.now).lowercased()).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
+            Spacer()
+            if let generation = model.generation {
+                GlowDot(color: accent).skeletonPulse()
+                TimelineView(.periodic(from: generation.startedAt, by: 1)) { context in
+                    Text(generation.consoleLine(now: context.date)).font(DS.Font.metaSmall).foregroundStyle(DS.Color.text).lineLimit(1)
+                }
+            } else if let briefing = model.currentBriefing {
+                GlowDot(color: model.lastError == nil ? accent : DS.Color.failed)
+                Text("\(Format.time(briefing.generatedAt)) · \(model.lastError == nil ? "ok" : "failed")")
+                    .font(DS.Font.metaSmall)
+                    .foregroundStyle(DS.Color.muted)
             }
         }
+        .padding(.horizontal, DS.Space.rowHorizontal)
+        .padding(.vertical, DS.Space.m)
+    }
+
+    private func priority(briefing: Briefing, generated: GeneratedBriefing) -> some View {
+        let project = briefing.facts.project(generated.focus.projectID)
+        return VStack(alignment: .leading, spacing: DS.Space.s) {
+            Text("PRIORITY_01 · \((project?.name ?? generated.focus.projectID).uppercased())")
+                .font(DS.Font.label)
+                .tracking(DS.Tracking.label)
+                .foregroundStyle(DS.Color.accentInk(accent))
+            Text(generated.headline)
+                .font(DS.Font.menuTitle)
+                .foregroundStyle(DS.Color.heading)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 0) {
+                ForEach(generated.focus.tasks) { task in
+                    TaskRow(
+                        task: task,
+                        isChecked: model.isChecked(task, in: briefing.id),
+                        isSkipped: model.isSkipped(task, in: briefing.id),
+                        isRunning: model.focusBlock?.taskKey == task.checkKey,
+                        isSelected: false
+                    ) {
+                        model.toggle(task, in: briefing.id)
+                    }
+                }
+            }
+            .padding(.horizontal, -DS.Space.m)
+        }
+        .padding(.horizontal, DS.Space.rowHorizontal)
+        .padding(.vertical, DS.Space.m)
+    }
+
+    private var actions: some View {
+        HStack(spacing: DS.Space.s) {
+            Button(action: model.regenerate) {
+                ShortcutLabel(title: model.isGenerating ? "running" : "regenerate", keys: "⌘R")
+            }
+            .buttonStyle(.consoleOutline)
+            .disabled(model.isGenerating)
+            .keyboardShortcut("r", modifiers: .command)
+            Spacer()
+            Button {
+                model.selection = .today
+                openWindow(id: WindowID.main)
+                NSApp.activate()
+            } label: {
+                ShortcutLabel(title: "open morning", keys: "↵", onAccent: true)
+            }
+            .buttonStyle(.consolePrimary)
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(.horizontal, DS.Space.rowHorizontal)
+        .padding(.vertical, DS.Space.m)
     }
 
     private func nextEvent(in briefing: Briefing) -> EventFact? {
-        briefing.facts.events
-            .filter { !$0.isAllDay && $0.end > .now }
-            .min { $0.start < $1.start }
+        briefing.facts.events.filter { !$0.isAllDay && $0.end > .now }.min { $0.start < $1.start }
     }
 }
 
-private struct MenuBarFocus: View {
-    @Environment(AppModel.self) private var model
-    let briefing: Briefing
-    let focus: GeneratedBriefing.Focus
-
-    var body: some View {
-        let project = briefing.facts.project(focus.projectID)
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            HStack(spacing: Spacing.s) {
-                ProjectGlyph(id: focus.projectID, name: project?.name ?? focus.projectID, size: Metrics.glyphSmall)
-                Text("Focus: \(project?.name ?? focus.projectID)")
-                    .font(Typography.cardTitle)
-                Spacer()
-                ProjectOpenMenu(project: project)
-            }
-            VStack(spacing: 0) {
-                ForEach(focus.tasks) { task in
-                    Button {
-                        model.toggle(task, in: briefing.id)
-                    } label: {
-                        HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
-                            CheckCircle(isOn: model.isChecked(task, in: briefing.id))
-                                .scaleEffect(0.85)
-                                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + Spacing.xs }
-                            Text(task.title)
-                                .font(Typography.body)
-                                .strikethrough(model.isChecked(task, in: briefing.id), color: Palette.textTertiary)
-                                .foregroundStyle(model.isChecked(task, in: briefing.id) ? Palette.textTertiary : Palette.textPrimary)
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(Format.minutes(task.estimateMinutes))
-                                .font(Typography.caption)
-                                .foregroundStyle(Palette.textTertiary)
-                        }
-                        .padding(.vertical, Spacing.xs)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .padding(Spacing.m)
-        .cardSurface(radius: Radius.m, fill: Palette.surfaceRaised)
-    }
-}
-
-private struct NextEventRow: View {
+/// `next  14:00–14:45  Design review: Morning · in 23m`
+private struct NextEventLine: View {
     let event: EventFact
 
     var body: some View {
-        HStack(spacing: Spacing.s) {
-            Capsule()
-                .fill(Color(hex: event.colorHex) ?? .accentColor)
-                .frame(width: Metrics.severityBar, height: Metrics.glyphMedium)
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(event.title).font(Typography.bodyEmphasis).lineLimit(1)
-                TimelineView(.everyMinute) { context in
-                    Text(when(now: context.date))
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.textSecondary)
+        TimelineView(.everyMinute) { context in
+            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
+                Text("next").font(DS.Font.tag).foregroundStyle(DS.Color.dim)
+                Text(Format.timeRange(event.start, event.end)).font(DS.Font.time).foregroundStyle(DS.Color.dim)
+                Text(event.title).font(DS.Font.rowTitle).foregroundStyle(DS.Color.text).lineLimit(1)
+                Spacer(minLength: DS.Space.xs)
+                Text(lead(now: context.date)).font(DS.Font.metaSmall).foregroundStyle(DS.Color.muted)
+                if let url = event.url {
+                    IconButton(symbol: "video", help: "Join") { Opener.url(url) }
                 }
             }
-            Spacer()
-            if let url = event.url {
-                Button("Join", systemImage: "video.fill") { Opener.url(url) }
-                    .buttonStyle(.borderless)
-            }
+            .padding(.horizontal, DS.Space.rowHorizontal)
+            .padding(.vertical, DS.Space.m)
         }
     }
 
-    private func when(now: Date) -> String {
-        if event.start <= now { return "Now · until \(Format.time(event.end))" }
+    private func lead(now: Date) -> String {
+        if event.start <= now { return "now" }
         let minutes = Int(event.start.timeIntervalSince(now) / 60)
-        let lead = minutes < 60 ? "In \(minutes) min" : "At \(Format.time(event.start))"
-        return "\(lead) · \(Format.timeRange(event.start, event.end))"
+        return minutes < 60 ? "in \(minutes)m" : "in \(minutes / 60)h\(String(format: "%02d", minutes % 60))"
     }
 }
 
 #Preview("Menu bar") {
     MenuBarView()
         .environment(AppModel.preview())
-        .tint(AccentChoice.sunrise.color)
+        .environment(\.accent, DS.Color.defaultAccent)
+        .preferredColorScheme(.dark)
 }
 
 #Preview("Menu bar — generating") {
     MenuBarView()
         .environment(AppModel.preview(generating: true))
-        .tint(AccentChoice.sunrise.color)
+        .preferredColorScheme(.dark)
 }
