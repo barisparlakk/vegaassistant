@@ -168,6 +168,10 @@ Type in the bar at the bottom of Today (`⌘K`), or press the microphone (`⇧�
 - **From anywhere:** `open "vega://ask?q=what's left on thermground?"` (Raycast, Shortcuts, Terminal), or `morning-cli ask "…"` for a text answer in the terminal.
 - Questions and answers are kept in memory for the day only.
 
+### Floating assistant
+
+Press **⌥ Space** in any app (change or turn it off in Settings › Voice) and a small pill appears above the Dock: the star, what Vega is doing (or your running focus block), the ask field and the microphone. Ask, and her answer slides up above the pill with its buttons while she reads it out. It floats over every Space and full-screen app, doesn't pull you out of the app you're in, and hides on Esc or when you click elsewhere (unless she's still listening or thinking). It's also in the menu bar popover (*Ask*) and in the Briefing menu. The conversation is shared with Today.
+
 ## News
 
 Alongside each briefing, Vega runs a second headless call that may use one tool, Claude Code's **WebSearch** (pre-approved with `--allowedTools`; nothing else is available to it). It looks for recent stories in your categories and returns JSON that Vega validates: only `https` links, no duplicates, at most N per category, and a `relevance` line only when it names one of your real projects. The feed is saved next to the briefing as `briefings/YYYY-MM-DD.news.json`. A news failure never blocks the briefing; it shows as a source line.

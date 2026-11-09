@@ -299,6 +299,21 @@ private struct VoiceSettings: View {
                 }
             }
             RowDivider()
+            SettingRow("floating assistant", detail: model.hotKeyError ?? "Summon Vega over any app. Esc or a click elsewhere hides her.") {
+                HStack(spacing: DS.Space.s) {
+                    Picker("Shortcut", selection: Binding(get: { model.hotKeyID }, set: { model.applyHotKey($0) })) {
+                        ForEach(GlobalHotKey.options) { combo in
+                            Text(combo.label).tag(combo.id)
+                        }
+                        Text("Off").tag(GlobalHotKey.off)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    Button("Show") { model.floating.show() }
+                        .buttonStyle(.consoleOutline)
+                }
+            }
+            RowDivider()
             SettingRow("sounds", detail: "Soft chimes when the briefing is ready, a focus block starts or ends, and a task is done.") {
                 HStack(spacing: DS.Space.s) {
                     switchToggle("Sounds", isOn: $soundsEnabled)

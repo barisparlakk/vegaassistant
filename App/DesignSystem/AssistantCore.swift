@@ -21,8 +21,10 @@ struct AssistantCore: View {
 
     var mood: Mood = .idle
     var size: CGFloat = DS.Size.orb
-    /// Rings and motion. Off for small marks like the sidebar logo.
-    var isDetailed = true
+    /// Motion: the sway, the living core, the pointer lean.
+    var isAnimated = true
+    /// The HUD rings and the speech flare. Off for small sizes.
+    var showsRings = true
     /// Bumped on every spoken word; each bump makes the star flare briefly.
     var pulse = 0
 
@@ -37,15 +39,15 @@ struct AssistantCore: View {
                 mood: mood,
                 accent: Self.rgba(accent),
                 isDark: scheme == .dark,
-                isDetailed: isDetailed,
-                isAnimated: isDetailed && !reduceMotion,
+                showsRings: showsRings,
+                isAnimated: isAnimated && !reduceMotion,
                 pointer: pointer,
                 pulse: pulse
             )
         )
         .frame(width: size, height: size)
         .onContinuousHover { phase in
-            guard isDetailed else { return }
+            guard isAnimated else { return }
             switch phase {
             case let .active(location):
                 pointer = CGPoint(x: location.x / size * 2 - 1, y: location.y / size * 2 - 1)
@@ -95,7 +97,7 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
         var mood: AssistantCore.Mood
         var accent: SIMD4<Float>
         var isDark: Bool
-        var isDetailed: Bool
+        var showsRings: Bool
         var isAnimated: Bool
         var pointer: CGPoint?
         var pulse: Int
@@ -196,7 +198,7 @@ final class AssistantCoreRenderer: NSObject, MTKViewDelegate {
             energy: energy,
             tilt: sway + lean,
             dark: state.isDark ? 1 : 0,
-            rings: state.isDetailed ? 1 : 0,
+            rings: state.showsRings ? 1 : 0,
             pulse: state.isAnimated ? Float(exp(-(now - pulseAt) * 5)) : 0,
             accent: state.accent
         )
@@ -266,7 +268,7 @@ struct VegaMarkShape: Shape {
     HStack(spacing: 40) {
         AssistantCore(mood: .idle, size: 220)
         AssistantCore(mood: .working, size: 220)
-        AssistantCore(size: 22, isDetailed: false)
+        AssistantCore(size: 52, showsRings: false)
     }
     .padding(40)
     .background(DS.Color.background)

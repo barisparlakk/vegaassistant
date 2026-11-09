@@ -36,7 +36,7 @@ struct MenuBarView: View {
                         }
                     }
                 } else if model.currentBriefing != nil {
-                    ConsoleMessage(text: "today's briefing is text — open morning to read it")
+                    ConsoleMessage(text: "Today's briefing is text. Open Vega to read it.")
                 } else {
                     ConsoleMessage(text: "no briefing for today")
                 }
@@ -55,9 +55,17 @@ struct MenuBarView: View {
 
     private var header: some View {
         HStack(spacing: DS.Space.s) {
-            Text("MORNING").font(DS.Font.brand).foregroundStyle(DS.Color.heading)
-            Text(Format.consoleDate(.now).lowercased()).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
+            Text("Vega").font(DS.Font.brand).foregroundStyle(DS.Color.heading)
+            Text(Date.now.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
             Spacer()
+            Button {
+                model.floating.show()
+            } label: {
+                Label("Ask", systemImage: "sparkle")
+                    .font(DS.Font.small)
+            }
+            .buttonStyle(.vegaPill)
+            .help("Open the floating assistant (\(GlobalHotKey.options.first { $0.id == model.hotKeyID }?.label ?? "no shortcut"))")
             if let generation = model.generation {
                 GlowDot(color: accent).skeletonPulse()
                 TimelineView(.periodic(from: generation.startedAt, by: 1)) { context in

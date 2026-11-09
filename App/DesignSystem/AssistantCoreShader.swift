@@ -160,7 +160,8 @@ fragment float4 coreFragment(VertexOut in [[stage_in]], constant Uniforms &u [[b
     float3 ro = float3(uv * zoom, 3.0);
     float3 rd = float3(0, 0, -1);
     // Sway rather than spin, so it always reads as a star; it never turns edge-on.
-    float spin = detailed ? 0.62 * sin(time * 0.23 * (0.7 + speed)) + 0.14 * sin(time * 0.11) : 0.42;
+    // (A still star gets a fixed time, so it holds one pose.)
+    float spin = 0.62 * sin(time * 0.23 * (0.7 + speed)) + 0.14 * sin(time * 0.11);
     float3x3 model = rotY(spin + u.tilt.x) * rotX(0.28 * sin(time * 0.21) + u.tilt.y - 0.12) * rotZ(0.06 * sin(time * 0.13));
     float3x3 inverse = transpose(model);
     float3 oro = inverse * ro;

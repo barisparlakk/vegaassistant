@@ -67,6 +67,8 @@ struct MorningCommands: Commands {
             Button("Regenerate") { model.regenerate() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(model.isGenerating)
+            Divider()
+            Button("Floating Assistant") { model.floating.toggle() }
         }
 
         CommandGroup(after: .sidebar) {

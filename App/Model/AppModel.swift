@@ -114,6 +114,30 @@ final class AppModel {
         system.notificationsAllowed = await notificationStatus()
         await service.repairLaunchAgentIfNeeded(hour: settings.briefingHour, minute: settings.briefingMinute)
         catchUpIfNeeded()
+        applyHotKey(GlobalHotKey.storedID)
+    }
+
+    // MARK: Floating assistant
+
+    @ObservationIgnored lazy var floating = FloatingAssistantController(model: self)
+    @ObservationIgnored private lazy var hotKey = GlobalHotKey { [weak self] in self?.floating.toggle() }
+
+    /// The shortcut's id (`off` when disabled), and an error if another app holds it.
+    private(set) var hotKeyID = GlobalHotKey.storedID
+    private(set) var hotKeyError: String?
+
+    /// Registers the floating assistant's global shortcut (or turns it off) and remembers it.
+    func applyHotKey(_ id: String) {
+        UserDefaults.standard.set(id, forKey: GlobalHotKey.defaultsKey)
+        hotKeyID = id
+        hotKeyError = nil
+        guard let combo = GlobalHotKey.options.first(where: { $0.id == id }) else {
+            hotKey.unregister()
+            return
+        }
+        if !hotKey.register(combo) {
+            hotKeyError = "\(combo.label) is already used by another app. Pick another."
+        }
     }
 
     /// launchd catches up after sleep, but not after a shutdown: if the scheduler is on, the
@@ -403,6 +427,7 @@ final class AppModel {
     /// One question and Vega's answer.
     struct Exchange: Identifiable, Equatable {
         let id = UUID()
+        let askedAt = Date.now
         let question: String
         var answer: VegaAnswer?
         var error: String?
