@@ -11,6 +11,7 @@ struct SettingsView: View {
             GeneralSettings()
             SourcesSettings()
             ClaudeSettings()
+            Section("News") { NewsSettingsSection() }
             AutomationSettings()
             DataSettings()
         }

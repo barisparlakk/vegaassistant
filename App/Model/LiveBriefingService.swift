@@ -62,6 +62,10 @@ struct LiveBriefingService: BriefingService {
         NewsStore(paths: paths).latest(onOrBefore: briefingID)
     }
 
+    func refreshNews() async throws -> NewsFeed {
+        try await NewsGenerator(settings: settingsStore.load(), paths: paths).refresh()
+    }
+
     func newsState() async -> NewsState {
         NewsStore(paths: paths).loadState()
     }

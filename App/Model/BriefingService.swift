@@ -23,6 +23,8 @@ protocol BriefingService: Sendable {
     func news(for briefingID: String) async -> NewsFeed?
     func newsState() async -> NewsState
     func saveNewsState(_ state: NewsState) async
+    /// Runs the news search now (one web-search run) and saves it as today's feed.
+    func refreshNews() async throws -> NewsFeed
 }
 
 /// In-memory service with realistic data and a paced fake generation run.
@@ -117,6 +119,11 @@ actor MockBriefingService: BriefingService {
     func newsState() async -> NewsState { news }
 
     func saveNewsState(_ state: NewsState) async { news = state }
+
+    func refreshNews() async throws -> NewsFeed {
+        try await Task.sleep(for: .seconds(1.5))
+        return MockData.news()
+    }
 
     func requestAccess(to kind: CollectorKind) async -> SystemStatus {
         if kind == .calendar { status.calendarAccess = .granted }

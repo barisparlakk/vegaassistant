@@ -233,6 +233,33 @@ final class AppModel {
 
     var newsFeeds: [String: NewsFeed] = [:]
     var newsState = NewsState()
+    var isRefreshingNews = false
+    var newsError: String?
+
+    /// The id news is shown for: today's briefing (or today, before the first one).
+    var newsID: String { currentBriefing?.id ?? Briefing.id(for: .now) }
+
+    var currentNews: NewsFeed? { newsFeeds[newsID] }
+
+    func refreshNews() {
+        guard !isRefreshingNews else { return }
+        isRefreshingNews = true
+        newsError = nil
+        let service = service
+        let id = Briefing.id(for: .now)
+        Task {
+            do {
+                let feed = try await service.refreshNews()
+                withAnimation(DS.Motion.standard) {
+                    newsFeeds[id] = feed
+                    if newsID != id { newsFeeds[newsID] = feed }
+                }
+            } catch {
+                newsError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            }
+            isRefreshingNews = false
+        }
+    }
 
     func loadNews(for briefingID: String) async {
         newsFeeds[briefingID] = await service.news(for: briefingID)
