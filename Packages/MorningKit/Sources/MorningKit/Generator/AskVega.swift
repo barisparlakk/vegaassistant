@@ -250,8 +250,12 @@ public enum AskVega {
                       project.kind == .repo else { return nil }
                 action.target = project.id
             case .copy:
-                guard let text = action.title?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+                // One line only: pasted into Terminal, a newline would run the first line at once.
+                guard let text = action.title?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+                      !text.contains(where: \.isNewline) else { return nil }
                 action.title = text
+                // Show exactly what gets copied, not the model's description of it.
+                action.label = "Copy “\(text.count > 44 ? text.prefix(42) + "…" : Substring(text))”"
             }
             if action.kind.writes {
                 action.label = label(for: action, projects: projects, now: question.now)

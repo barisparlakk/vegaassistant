@@ -58,8 +58,11 @@ public enum GitPush {
         let upstream = upstreamResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard upstreamResult.succeeded, !upstream.isEmpty else { throw Failure.noUpstream(branch: branch) }
 
-        // Count now, not from the morning's briefing.
-        let ahead = Int((try await run(["rev-list", "--count", "@{u}..HEAD"])).output.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        // Count now, not from the morning's briefing. A failed count is an error, not "nothing to push".
+        let count = try await run(["rev-list", "--count", "@{u}..HEAD"])
+        guard count.succeeded, let ahead = Int(count.output.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            throw Failure.failed(count.errorOutput.condensed(limit: 300).nilIfEmpty ?? "Couldn't count the commits to push.")
+        }
         guard ahead > 0 else { return .nothingToPush(branch: branch) }
 
         let push = try await run(["push"], timeout: .seconds(90))
