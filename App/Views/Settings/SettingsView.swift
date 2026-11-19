@@ -282,20 +282,26 @@ private struct VoiceSettings: View {
                 switchToggle("Speak the briefing", isOn: $model.speaksOnOpen)
             }
             RowDivider()
-            SettingRow("voice", detail: "On-device voices. For a more natural one, add a premium voice such as Ava or Zoe in System Settings › Accessibility › Spoken Content › System Voice › Manage Voices.") {
-                HStack(spacing: DS.Space.s) {
-                    Picker("Voice", selection: $voiceID) {
-                        Text("Vega (best female voice)").tag("")
-                        ForEach(VegaVoice.availableVoices, id: \.identifier) { voice in
-                            Text(label(for: voice)).tag(voice.identifier)
+            SettingRow("Voice", detail: voiceDetail) {
+                VStack(alignment: .trailing, spacing: DS.Space.s) {
+                    HStack(spacing: DS.Space.s) {
+                        Picker("Voice", selection: $voiceID) {
+                            Text("Vega’s choice (best female voice)").tag("")
+                            ForEach(VegaVoice.availableVoices, id: \.identifier) { voice in
+                                Text(label(for: voice)).tag(voice.identifier)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: DS.Size.pathFieldWidth)
+                        .id(model.voice.voicesVersion)
+                        Button("Preview") {
+                            model.voice.speak([VegaLine(id: "preview", text: "Hi, I'm Vega. I'll keep an eye on your day and tell you what matters.")])
+                        }
+                        .buttonStyle(.consoleOutline)
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: DS.Size.pathFieldWidth)
-                    Button("Preview") {
-                        model.voice.speak([VegaLine(id: "preview", text: "Hi, I'm Vega. I'll keep track of your day.")])
-                    }
-                    .buttonStyle(.consoleOutline)
+                    Button("Get a better voice…") { Opener.url(VegaVoice.spokenContentSettings.absoluteString) }
+                        .buttonStyle(.consoleGhost)
+                        .help("Opens Spoken Content. Choose System Voice › Manage Voices… and download Ava or Zoe (Premium).")
                 }
             }
             RowDivider()
@@ -322,6 +328,24 @@ private struct VoiceSettings: View {
                         .disabled(!soundsEnabled)
                 }
             }
+        }
+    }
+
+    /// Which voice she's using now, and how to get a better one.
+    private var voiceDetail: String {
+        _ = model.voice.voicesVersion
+        let current = VegaVoice.selectedVoice.map { "Speaking as \($0.name) (\(quality($0)))." } ?? ""
+        let tip = VegaVoice.hasOnlyBasicVoices
+            ? " Only basic voices are installed. For a natural one: Get a better voice… › System Voice › Manage Voices… › English › Ava or Zoe (Premium). Vega switches to it automatically."
+            : ""
+        return current + tip
+    }
+
+    private func quality(_ voice: AVSpeechSynthesisVoice) -> String {
+        switch voice.quality {
+        case .premium: "premium"
+        case .enhanced: "enhanced"
+        default: "basic"
         }
     }
 

@@ -26,11 +26,26 @@ final class VegaVoice: NSObject {
     }
 
     @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
+    @ObservationIgnored private var voicesObserver: NSObjectProtocol?
+    /// Bumped when voices are installed or removed, so lists refresh.
+    private(set) var voicesVersion = 0
+
+    /// System Settings › Accessibility › Spoken Content, where better voices are downloaded.
+    static let spokenContentSettings = URL(string: "x-apple.systempreferences:com.apple.Accessibility-Settings.extension?SpokenContent")!
+
+    /// True when only basic (compact) voices are installed.
+    static var hasOnlyBasicVoices: Bool {
+        !availableVoices.contains { $0.quality != .default }
+    }
     @ObservationIgnored private var utterances: [ObjectIdentifier: Int] = [:]
 
     override init() {
         super.init()
         synthesizer.delegate = self
+        // A voice added in System Settings shows up (and becomes the default) right away.
+        voicesObserver = NotificationCenter.default.addObserver(forName: AVSpeechSynthesizer.availableVoicesDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.voicesVersion &+= 1 }
+        }
     }
 
     /// Speaks `lines` from the start. With `silently`, shows them all at once without speaking.
