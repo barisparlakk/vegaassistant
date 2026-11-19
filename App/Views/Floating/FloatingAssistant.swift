@@ -270,10 +270,12 @@ private struct AnswerCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 if !answer.actions.isEmpty {
-                    HStack(spacing: DS.Space.s) {
-                        ForEach(answer.actions, id: \.self) { action in
-                            Button(action.label) { model.perform(action) }
-                                .buttonStyle(.vegaPill)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DS.Space.s) {
+                            ForEach(answer.actions, id: \.self) { VegaActionButton(action: $0, exchangeID: exchange.id) }
+                        }
+                        VStack(alignment: .leading, spacing: DS.Space.s) {
+                            ForEach(answer.actions, id: \.self) { VegaActionButton(action: $0, exchangeID: exchange.id) }
                         }
                     }
                 }

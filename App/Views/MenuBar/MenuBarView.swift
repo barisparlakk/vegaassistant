@@ -25,7 +25,7 @@ struct MenuBarView: View {
                     if !news.isEmpty {
                         RowDivider()
                         VStack(alignment: .leading, spacing: 0) {
-                            SectionLabel("news")
+                            SectionLabel("Worth reading")
                                 .padding(.horizontal, DS.Space.rowHorizontal)
                                 .padding(.top, DS.Space.s)
                             ForEach(Array(news.enumerated()), id: \.element.id) { index, item in
@@ -38,12 +38,12 @@ struct MenuBarView: View {
                 } else if model.currentBriefing != nil {
                     ConsoleMessage(text: "Today's briefing is text. Open Vega to read it.")
                 } else {
-                    ConsoleMessage(text: "no briefing for today")
+                    ConsoleMessage(text: "No briefing for today yet.")
                 }
             }
             if let error = model.lastError {
                 RowDivider()
-                ConsoleMessage(text: "last run failed: \(error.lowercased())", tone: DS.Color.failed)
+                ConsoleMessage(text: "The last run failed: \(error)", tone: DS.Color.failed)
                     .lineLimit(2)
             }
             RowDivider()
@@ -73,7 +73,7 @@ struct MenuBarView: View {
                 }
             } else if let briefing = model.currentBriefing {
                 GlowDot(color: model.lastError == nil ? accent : DS.Color.failed)
-                Text("\(Format.time(briefing.generatedAt)) · \(model.lastError == nil ? "ok" : "failed")")
+                Text(model.lastError == nil ? "Ready at \(Format.time(briefing.generatedAt))" : "Last run failed")
                     .font(DS.Font.metaSmall)
                     .foregroundStyle(DS.Color.muted)
             }
@@ -85,9 +85,8 @@ struct MenuBarView: View {
     private func priority(briefing: Briefing, generated: GeneratedBriefing) -> some View {
         let project = briefing.facts.project(generated.focus.projectID)
         return VStack(alignment: .leading, spacing: DS.Space.s) {
-            Text("PRIORITY_01 · \((project?.name ?? generated.focus.projectID).uppercased())")
-                .font(DS.Font.label)
-                .tracking(DS.Tracking.label)
+            Text("Focus · \(project?.name ?? generated.focus.projectID)")
+                .font(DS.Font.small)
                 .foregroundStyle(DS.Color.accentInk(accent))
             Text(generated.headline)
                 .font(DS.Font.menuTitle)
@@ -115,7 +114,7 @@ struct MenuBarView: View {
     private var actions: some View {
         HStack(spacing: DS.Space.s) {
             Button(action: model.regenerate) {
-                ShortcutLabel(title: model.isGenerating ? "running" : "regenerate", keys: "⌘R")
+                ShortcutLabel(title: model.isGenerating ? "Working…" : "Regenerate", keys: "⌘R")
             }
             .buttonStyle(.consoleOutline)
             .disabled(model.isGenerating)
@@ -126,7 +125,7 @@ struct MenuBarView: View {
                 openWindow(id: WindowID.main)
                 NSApp.activate()
             } label: {
-                ShortcutLabel(title: "open morning", keys: "↵", onAccent: true)
+                ShortcutLabel(title: "Open Vega", keys: "↵", onAccent: true)
             }
             .buttonStyle(.consolePrimary)
             .keyboardShortcut(.defaultAction)
@@ -140,14 +139,14 @@ struct MenuBarView: View {
     }
 }
 
-/// `next  14:00–14:45  Design review: Morning · in 23m`
+/// `Next  14:00–14:45  Design review · in 23m`
 private struct NextEventLine: View {
     let event: EventFact
 
     var body: some View {
         TimelineView(.everyMinute) { context in
             HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
-                Text("next").font(DS.Font.tag).foregroundStyle(DS.Color.dim)
+                Text("Next").font(DS.Font.tag).foregroundStyle(DS.Color.dim)
                 Text(Format.timeRange(event.start, event.end)).font(DS.Font.time).foregroundStyle(DS.Color.dim)
                 Text(event.title).font(DS.Font.rowTitle).foregroundStyle(DS.Color.text).lineLimit(1)
                 Spacer(minLength: DS.Space.xs)
@@ -162,7 +161,7 @@ private struct NextEventLine: View {
     }
 
     private func lead(now: Date) -> String {
-        if event.start <= now { return "now" }
+        if event.start <= now { return "Now" }
         let minutes = Int(event.start.timeIntervalSince(now) / 60)
         return minutes < 60 ? "in \(minutes)m" : "in \(minutes / 60)h\(String(format: "%02d", minutes % 60))"
     }

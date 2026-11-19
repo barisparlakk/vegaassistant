@@ -24,17 +24,14 @@ struct ConversationView: View {
                 VStack(alignment: .leading, spacing: DS.Space.xl + DS.Space.xs) {
                     banner
                     ForEach(Array(lines.prefix(max(visible, 1))), id: \.id) { line in
-                        VStack(alignment: .leading, spacing: DS.Space.m + DS.Space.xxs) {
-                            caption(line)
-                            attachment(for: line)
-                        }
+                        VegaLineView(line: line, briefing: briefing, cursor: $cursor)
                         .id(line.id)
                         .transition(.opacity.combined(with: .offset(y: DS.Motion.offset * 2)))
                     }
                     if !model.isSpeakingScript {
                         SourcesLine(briefing: briefing)
                         ForEach(model.exchanges) { exchange in
-                            ExchangeView(exchange: exchange, caption: caption)
+                            ExchangeView(exchange: exchange)
                                 .id(exchange.id)
                                 .transition(.opacity.combined(with: .offset(y: DS.Motion.offset * 2)))
                         }
@@ -101,52 +98,6 @@ struct ConversationView: View {
 
     private static let bottom = "conversation-bottom"
 
-    // MARK: Lines
-
-    /// The line's text; while it's being said, the part still to come is dimmed.
-    private func caption(_ line: VegaLine) -> some View {
-        let voice = model.voice
-        var text = AttributedString(line.text)
-        if voice.currentLineID == line.id {
-            let length = (line.text as NSString).length
-            let cut = min(max(voice.spokenLength, 0), length)
-            let upcoming = (line.text as NSString).substring(from: cut)
-            if !upcoming.isEmpty, let range = text.range(of: upcoming, options: .backwards) {
-                text[range].foregroundColor = DS.Color.dim
-            }
-        }
-        return Text(text)
-            .font(line.isOpening ? DS.Font.vegaOpening : DS.Font.vegaLine)
-            .tracking(line.isOpening ? -0.3 : -0.1)
-            .lineSpacing(line.isOpening ? 2 : 4)
-            .foregroundStyle(DS.Color.heading)
-            .fixedSize(horizontal: false, vertical: true)
-            .textSelection(.enabled)
-    }
-
-    @ViewBuilder
-    private func attachment(for line: VegaLine) -> some View {
-        let generated = briefing.structured
-        switch line.attachment {
-        case .none:
-            EmptyView()
-        case .focusTasks:
-            if let generated {
-                PriorityPanel(briefing: briefing, focus: generated.focus, headline: generated.headline, cursor: $cursor)
-            }
-        case .overnight:
-            OvernightCard(facts: briefing.facts, summary: generated?.section(.overnight), cursor: $cursor)
-        case .decisions:
-            DecisionsCard(facts: briefing.facts, section: generated?.section(.attention), cursor: $cursor)
-        case .agenda:
-            AgendaCard(facts: briefing.facts, cursor: $cursor)
-        case .news:
-            NewsCard(briefingID: briefing.id, cursor: $cursor)
-        case .fallback:
-            FallbackPanel(briefing: briefing)
-        }
-    }
-
     @ViewBuilder private var banner: some View {
         if let error = model.lastError {
             ConsoleMessage(text: "Regenerating failed: \(error)", actionTitle: "Try again", keys: "⌘R", tone: DS.Color.failed, action: model.regenerate)
@@ -190,10 +141,9 @@ struct ConversationWaiting: View {
 // MARK: - Exchanges
 
 /// Your question (right) and Vega's answer with her action buttons.
-private struct ExchangeView<Caption: View>: View {
+private struct ExchangeView: View {
     @Environment(AppModel.self) private var model
     let exchange: AppModel.Exchange
-    let caption: (VegaLine) -> Caption
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.m) {
@@ -208,13 +158,14 @@ private struct ExchangeView<Caption: View>: View {
                 .textSelection(.enabled)
 
             if let answer = exchange.answer {
-                caption(VegaLine(id: exchange.lineID, text: answer.answer))
+                VegaCaption(line: VegaLine(id: exchange.lineID, text: answer.answer))
                 if !answer.actions.isEmpty {
-                    HStack(spacing: DS.Space.s) {
-                        ForEach(answer.actions, id: \.self) { action in
-                            Button(action.label) { model.perform(action) }
-                                .buttonStyle(.vegaPill)
-                                .help(help(for: action))
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DS.Space.s) {
+                            ForEach(answer.actions, id: \.self) { VegaActionButton(action: $0, exchangeID: exchange.id) }
+                        }
+                        VStack(alignment: .leading, spacing: DS.Space.s) {
+                            ForEach(answer.actions, id: \.self) { VegaActionButton(action: $0, exchangeID: exchange.id) }
                         }
                     }
                 }
@@ -234,17 +185,6 @@ private struct ExchangeView<Caption: View>: View {
                         .buttonStyle(.vegaPill)
                 }
             }
-        }
-    }
-
-    private func help(for action: VegaAction) -> String {
-        switch action.kind {
-        case .openTerminal: "Open the project in Terminal"
-        case .openEditor: "Open the project in your editor"
-        case .openURL: action.target ?? "Open the link"
-        case .startFocus: "Start a focus block on this task"
-        case .show: "Go to \(action.target ?? "")"
-        case .regenerate: "Rebuild today's briefing"
         }
     }
 }

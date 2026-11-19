@@ -55,18 +55,46 @@ public struct VegaAction: Codable, Sendable, Hashable {
         case startFocus = "start_focus"
         case show
         case regenerate
+        /// Adds a reminder (title, optional due date).
+        case createReminder = "create_reminder"
+        /// Adds a calendar event (title, start date, minutes).
+        case createEvent = "create_event"
+        /// Pushes a project's current branch to its upstream.
+        case gitPush = "git_push"
+        /// Copies text to the clipboard.
+        case copy
+
+        /// Changes your data or leaves the Mac; its label is written by the app, not the model.
+        public var writes: Bool {
+            switch self {
+            case .createReminder, .createEvent, .gitPush: true
+            default: false
+            }
+        }
     }
 
     public var kind: Kind
     public var label: String
-    /// A project id (terminal, editor), an https URL, a focus task id, or a view name.
+    /// A project id (terminal, editor, push), an https URL, a focus task id, or a view name.
     public var target: String?
+    /// Reminder or event title, or the text to copy.
+    public var title: String?
+    /// Reminder due date or event start, ISO 8601 (local time when it has no offset).
+    public var date: String?
+    /// Event length in minutes.
+    public var minutes: Int?
 
-    public init(kind: Kind, label: String, target: String? = nil) {
+    public init(kind: Kind, label: String, target: String? = nil, title: String? = nil, date: String? = nil, minutes: Int? = nil) {
         self.kind = kind
         self.label = label
         self.target = target
+        self.title = title
+        self.date = date
+        self.minutes = minutes
     }
+
+    /// The parsed `date`.
+    public var parsedDate: Date? { date.flatMap { AskVega.parseDate($0) } }
 
     /// Views `show` may open.
     public static let views = ["today", "projects", "news", "history", "settings"]
@@ -109,13 +137,20 @@ public enum AskVega {
         - Use web search only when the question needs current information that isn't in the context.
         - Speak to \(name) directly ("you"), and don't repeat the question.
 
-        You can't run commands yourself. When it would help, offer up to three actions, each with a short \
-        button label (two to four words):
+        You can't run anything yourself. When it would help, offer up to three actions as buttons; the \
+        person clicks to do them. Each has a short label (two to four words):
         - open_terminal / open_editor: target is a project id from the context.
         - open_url: target is an https URL from the context or your search.
         - start_focus: target is a focus task id from the briefing.
         - show: target is one of \(VegaAction.views.joined(separator: ", ")).
         - regenerate: rebuilds today's briefing; no target.
+        - create_reminder: title (short, imperative), optional date for when it's due.
+        - create_event: title, date (start), minutes (length, default 30).
+        - git_push: target is a project id; pushes its current branch to its upstream. Offer it only \
+        when that project has unpushed commits.
+        - copy: title is the text to copy (a command, a branch name, a short note).
+        Dates are ISO 8601 in the person's local time, e.g. 2026-11-20T09:00:00, and must be in the future. \
+        When asked to remind, schedule or push, answer briefly and offer the action; don't claim it's done.
         Return only the JSON object.
         """
         var user = "Now: \(ISODate.fractionalString(question.now)) (\(question.now.formatted(.dateTime.weekday(.wide).hour().minute())))\n"
@@ -155,7 +190,10 @@ public enum AskVega {
     "actions":{"type":"array","maxItems":3,"items":{"type":"object","additionalProperties":false,"required":["kind","label"],"properties":{\
     "kind":{"type":"string","enum":[\(VegaAction.Kind.allCases.map { "\"\($0.rawValue)\"" }.joined(separator: ","))]},\
     "label":{"type":"string","minLength":1,"maxLength":40},\
-    "target":{"type":"string"}}}}}}
+    "target":{"type":"string"},\
+    "title":{"type":"string","maxLength":200},\
+    "date":{"type":"string"},\
+    "minutes":{"type":"integer"}}}}}}
     """
 
     // MARK: Validation
@@ -189,10 +227,89 @@ public enum AskVega {
                 action.target = target
             case .regenerate:
                 action.target = nil
+            case .createReminder:
+                guard let title = cleanTitle(action.title) else { return nil }
+                action.title = title
+                action.target = nil
+                if let raw = action.date {
+                    guard let due = parseDate(raw), due > question.now else { return nil }
+                    action.date = ISODate.fractionalString(due)
+                }
+                action.minutes = nil
+            case .createEvent:
+                guard let title = cleanTitle(action.title), let raw = action.date,
+                      let start = parseDate(raw), start > question.now else { return nil }
+                let minutes = action.minutes ?? 30
+                guard (5...480).contains(minutes) else { return nil }
+                action.title = title
+                action.date = ISODate.fractionalString(start)
+                action.minutes = minutes
+                action.target = nil
+            case .gitPush:
+                guard let target, let project = projects.first(where: { $0.id == target || $0.name.caseInsensitiveCompare(target) == .orderedSame }),
+                      project.kind == .repo else { return nil }
+                action.target = project.id
+            case .copy:
+                // One line only: pasted into Terminal, a newline would run the first line at once.
+                guard let text = action.title?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+                      !text.contains(where: \.isNewline) else { return nil }
+                action.title = text
+                // Show exactly what gets copied, not the model's description of it.
+                action.label = "Copy “\(text.count > 44 ? text.prefix(42) + "…" : Substring(text))”"
+            }
+            if action.kind.writes {
+                action.label = label(for: action, projects: projects, now: question.now)
             }
             return action
         }
-        return VegaAnswer(answer: answer.isEmpty ? "Sorry, I didn't catch an answer that time." : answer, actions: Array(actions.uniqued(by: { "\($0.kind.rawValue)|\($0.target ?? "")" }).prefix(3)))
+        let unique = actions.uniqued(by: { "\($0.kind.rawValue)|\($0.target ?? "")|\($0.title ?? "")|\($0.date ?? "")" })
+        return VegaAnswer(answer: answer.isEmpty ? "Sorry, I didn't catch an answer that time." : answer, actions: Array(unique.prefix(3)))
+    }
+
+    /// The button text for an action that writes: built from the checked fields, never from
+    /// the model's own label (the context includes text from the web and commit messages).
+    static func label(for action: VegaAction, projects: [ProjectFact], now: Date) -> String {
+        let when = action.parsedDate.map { " · " + spokenTime($0, now: now) } ?? ""
+        switch action.kind {
+        case .createReminder:
+            return "Remind me: \(action.title ?? "")\(when)"
+        case .createEvent:
+            return "Add to calendar: \(action.title ?? "")\(when), \(action.minutes ?? 30) min"
+        case .gitPush:
+            let name = projects.first { $0.id == action.target }?.name ?? action.target ?? ""
+            return "Push \(name)"
+        default:
+            return action.label
+        }
+    }
+
+    /// "today 14:00", "tomorrow 09:00", "Fri 10:30".
+    static func spokenTime(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let time = date.formatted(date: .omitted, time: .shortened)
+        if calendar.isDate(date, inSameDayAs: now) { return "today \(time)" }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(date, inSameDayAs: tomorrow) { return "tomorrow \(time)" }
+        return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) + " " + time
+    }
+
+    /// Titles are one line, at most 120 characters.
+    static func cleanTitle(_ title: String?) -> String? {
+        let line = (title ?? "").split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
+        guard !line.isEmpty else { return nil }
+        return String(line.prefix(120))
+    }
+
+    /// ISO 8601 with an offset, or without one (then it's local time); seconds optional.
+    public static func parseDate(_ raw: String, timeZone: TimeZone = .current) -> Date? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let date = ISODate.parse(text) { return date }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd HH:mm"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: text) { return date }
+        }
+        return nil
     }
 
     /// Strips markdown that would be read aloud as symbols.

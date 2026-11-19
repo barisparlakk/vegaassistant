@@ -140,18 +140,18 @@ struct SectionLabel: View {
     }
 }
 
-/// `DONE` / `NEEDS_YOU` / `FAILED` and other mono statuses.
+/// "Done" / "Needs you" / "Failed" and other short statuses.
 struct StatusTag: View {
     enum Kind {
         case done, needsYou, failed, active, idle, custom(String, Color)
 
         var label: String {
             switch self {
-            case .done: "DONE"
-            case .needsYou: "NEEDS_YOU"
-            case .failed: "FAILED"
-            case .active: "ACTIVE"
-            case .idle: "IDLE"
+            case .done: "Done"
+            case .needsYou: "Needs you"
+            case .failed: "Failed"
+            case .active: "Active"
+            case .idle: "Idle"
             case let .custom(label, _): label
             }
         }

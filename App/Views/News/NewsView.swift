@@ -29,26 +29,30 @@ struct NewsView: View {
     // MARK: Tabs & toolbar
 
     private var tabs: [(Tab, String)] {
-        [(.all, "all")] + (model.currentNews?.categories ?? []).map { (.category($0.id), $0.label.lowercased()) } + [(.saved, "saved")]
+        [(.all, "All")] + (model.currentNews?.categories ?? []).map { (.category($0.id), NewsLabel.display($0.label)) } + [(.saved, "Saved")]
     }
 
     private var toolbar: some View {
         HStack(alignment: .firstTextBaseline, spacing: DS.Space.l) {
-            HStack(spacing: DS.Space.xs) {
-                ForEach(Array(tabs.enumerated()), id: \.offset) { index, entry in
-                    TabButton(title: entry.1, count: items(for: entry.0).count, isSelected: tab == entry.0, hint: index < 9 ? "\(index + 1)" : nil) {
-                        select(entry.0)
+            // Scrolls sideways when there are more categories than fit.
+            ScrollView(.horizontal) {
+                HStack(spacing: DS.Space.xs) {
+                    ForEach(Array(tabs.enumerated()), id: \.offset) { index, entry in
+                        TabButton(title: entry.1, count: items(for: entry.0).count, isSelected: tab == entry.0, hint: index < 9 ? "\(index + 1)" : nil) {
+                            select(entry.0)
+                        }
                     }
                 }
             }
+            .scrollIndicators(.never)
             Spacer(minLength: DS.Space.m)
             if let feed = model.currentNews {
-                Text("updated \(Format.time(feed.generatedAt))")
+                Text("Updated \(Format.time(feed.generatedAt))")
                     .font(DS.Font.metaSmall)
                     .foregroundStyle(DS.Color.dim)
             }
             Button(action: model.refreshNews) {
-                ShortcutLabel(title: model.isRefreshingNews ? "searching…" : "refresh", keys: "R")
+                ShortcutLabel(title: model.isRefreshingNews ? "Searching…" : "Refresh", keys: "R")
             }
             .buttonStyle(.consoleOutline)
             .disabled(model.isRefreshingNews || !model.settings.newsEnabled)
@@ -64,14 +68,14 @@ struct NewsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.m) {
                     if let error = model.newsError {
-                        ConsoleMessage(text: "refresh failed: \(error.lowercased())", actionTitle: "retry", keys: "R", tone: DS.Color.failed, action: model.refreshNews)
+                        ConsoleMessage(text: "Refreshing failed: \(error)", actionTitle: "Try again", keys: "R", tone: DS.Color.failed, action: model.refreshNews)
                             .padding(.horizontal, -DS.Space.rowHorizontal)
                     }
                     Panel {
                         if model.isRefreshingNews && list.isEmpty {
                             SkeletonRows(count: 5)
                         } else if !model.settings.newsEnabled {
-                            ConsoleMessage(text: "news is off", actionTitle: "settings", keys: "⌘,") { model.selection = .settings }
+                            ConsoleMessage(text: "News is off.", actionTitle: "Settings", keys: "⌘,") { model.selection = .settings }
                         } else if list.isEmpty {
                             emptyMessage
                         }
@@ -97,7 +101,7 @@ struct NewsView: View {
                             }
                         }
                     }
-                    KeyboardHints(hints: [("j/k", "move"), ("↵", "open"), ("s", "save"), ("←/→", "category"), ("r", "refresh")])
+                    KeyboardHints(hints: [("j/k", "Move"), ("↵", "Open"), ("s", "Save"), ("←/→", "Category"), ("r", "Refresh")])
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -132,11 +136,11 @@ struct NewsView: View {
     @ViewBuilder private var emptyMessage: some View {
         switch tab {
         case .saved:
-            ConsoleMessage(text: "nothing saved — press s on a story to keep it")
+            ConsoleMessage(text: "Nothing saved yet. Press S on a story to keep it.")
         case .category:
-            ConsoleMessage(text: "nothing notable in this category today")
+            ConsoleMessage(text: "Nothing notable in this category today.")
         case .all:
-            ConsoleMessage(text: "no news yet", actionTitle: "refresh", keys: "R", action: model.refreshNews)
+            ConsoleMessage(text: "No news yet.", actionTitle: "Refresh", keys: "R", action: model.refreshNews)
         }
     }
 
@@ -184,6 +188,7 @@ private struct TabButton: View {
             VStack(spacing: DS.Space.xs) {
                 HStack(spacing: DS.Space.xs) {
                     Text(title)
+                        .lineLimit(1)
                         .foregroundStyle(isSelected ? DS.Color.heading : (isHovered ? DS.Color.text : DS.Color.muted))
                     Text("\(count)")
                         .foregroundStyle(DS.Color.dim)
@@ -194,6 +199,7 @@ private struct TabButton: View {
                     .frame(height: DS.Size.hairline * 2)
             }
             .padding(.horizontal, DS.Space.s)
+            .fixedSize()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

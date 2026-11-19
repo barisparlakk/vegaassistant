@@ -163,7 +163,14 @@ Focus blocks and skipped tasks are kept in the app only; checked tasks are store
 
 ## Ask Vega
 
-Type in the bar at the bottom of Today (`⌘K`), or press the microphone (`⇧⌘K`) and just talk: Vega stops listening when you pause, then answers out loud in a sentence or three, with up to three buttons when she can help (open a project in Terminal or your editor, open a link, start a focus block, go to a view, regenerate).
+Type in the bar at the bottom of Today (`⌘K`), or press the microphone (`⇧⌘K`) and just talk: Vega stops listening when you pause, then answers out loud in a sentence or three, with up to three buttons when she can help:
+
+- open a project in Terminal or your editor, open a link, start a focus block, go to a view, regenerate;
+- **add a reminder** ("remind me tomorrow at 9 to push thermground") or **a calendar event**, in your default list and calendar;
+- **push a project's branch**: the current branch to its upstream only, never forced, with the commits counted when you click, and failing fast instead of waiting on a password prompt;
+- **copy** a command or note.
+
+Nothing is done until you click. Buttons that change your data say exactly what they'll do ("Remind me: Push thermground · tomorrow 9:00"); that text is written by the app from checked fields, not by the model. The result shows in place of the button.
 
 - **How it works:** one headless `claude -p` run on your subscription, like the briefing. It gets today's briefing, the facts behind it (the 40 newest commits, no raw hook log), today's news and your earlier questions today. Its only tool is web search, for questions that need current information. Answers usually take 5–15 seconds; a run that hasn't answered after 45 seconds is retried once. Buttons are checked against your real projects, tasks and links before they're shown.
 - **Voice input** uses Apple's speech recognition, on the device when your Mac supports it. Vega listens only after you press the microphone, and asks for Microphone and Speech Recognition permission the first time.
@@ -235,7 +242,7 @@ Settings live in `~/Library/Application Support/Morning/settings.json`, shared b
 - Claude model (`sonnet`, `opus`, `haiku`, …) and a custom path to `claude`
 - extra instructions appended to every briefing prompt (tone, language, priorities)
 
-Settings › Voice (kept in the app's preferences): whether Vega speaks the briefing the first time you open it, which voice she uses (by default the best female English voice installed; add a premium voice such as Ava or Zoe in System Settings › Accessibility › Spoken Content › System Voice › Manage Voices for a more natural sound), and whether the interface chimes play.
+Settings › Voice and assistant (kept in the app's preferences): whether Vega speaks the briefing the first time you open it, which voice she uses, the floating assistant's shortcut, and whether the interface chimes play. macOS ships only basic voices; for a natural one press **Get a better voice…** and download Ava or Zoe (Premium) under System Voice › Manage Voices. Vega switches to it as soon as it's installed.
 
 Vega finds `claude` even when launched from Finder or launchd, where `PATH` is minimal: it checks `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, npm/Volta/Bun/pnpm and nvm locations, then your login shell. Set a custom path in Settings › Claude if yours is elsewhere.
 

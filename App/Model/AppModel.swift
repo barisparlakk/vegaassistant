@@ -518,7 +518,22 @@ final class AppModel {
     }
 
     /// Does what one of Vega's action buttons offers.
-    func perform(_ action: VegaAction) {
+    /// What happened when a button that writes was clicked, by `actionKey`.
+    enum ActionState: Equatable {
+        case running
+        case done(String)
+        case failed(String)
+    }
+
+    private(set) var actionStates: [String: ActionState] = [:]
+
+    func actionKey(_ action: VegaAction, in exchangeID: UUID) -> String {
+        "\(exchangeID.uuidString)|\(action.kind.rawValue)|\(action.target ?? "")|\(action.title ?? "")|\(action.date ?? "")"
+    }
+
+    /// Does what one of Vega's buttons offers. Buttons that write (reminders, events, push)
+    /// report back under the button and run only once.
+    func perform(_ action: VegaAction, in exchangeID: UUID) {
         let briefing = currentBriefing
         let project = briefing?.facts.projects.first { $0.id == action.target }
         switch action.kind {
@@ -533,6 +548,41 @@ final class AppModel {
             if let target = action.target, let item = SidebarItem(rawValue: target) { selection = item }
         case .regenerate:
             regenerate()
+        case .copy:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(action.title ?? "", forType: .string)
+            actionStates[actionKey(action, in: exchangeID)] = .done("Copied")
+        case .createReminder, .createEvent, .gitPush:
+            let key = actionKey(action, in: exchangeID)
+            switch actionStates[key] {
+            case .running?, .done?: return
+            default: break
+            }
+            actionStates[key] = .running
+            Task {
+                do {
+                    let message = try await runWriteAction(action, project: project)
+                    actionStates[key] = .done(message)
+                    sounds.play(.done)
+                } catch {
+                    actionStates[key] = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func runWriteAction(_ action: VegaAction, project: ProjectFact?) async throws -> String {
+        switch action.kind {
+        case .createReminder:
+            return try await VegaActions.addReminder(title: action.title ?? "", due: action.parsedDate)
+        case .createEvent:
+            guard let start = action.parsedDate else { throw VegaActions.Failure("That event has no start time.") }
+            return try await VegaActions.addEvent(title: action.title ?? "", start: start, minutes: action.minutes ?? 30)
+        case .gitPush:
+            guard let project else { throw VegaActions.Failure("I can't find that project any more.") }
+            return try await GitPush.push(repository: URL(fileURLWithPath: project.path)).summary
+        default:
+            return ""
         }
     }
 

@@ -35,7 +35,7 @@ struct ProjectsView: View {
             HStack(spacing: DS.Space.m) {
                 HStack(spacing: DS.Space.s) {
                     Text("/").font(DS.Font.meta).foregroundStyle(DS.Color.dim)
-                    TextField("filter", text: $query)
+                    TextField("Filter projects", text: $query)
                         .textFieldStyle(.plain)
                         .font(DS.Font.meta)
                         .foregroundStyle(DS.Color.text)
@@ -63,7 +63,7 @@ struct ProjectsView: View {
                             header
                         } content: {
                             if projects.isEmpty {
-                                ConsoleMessage(text: "no project matches \"\(query)\"")
+                                ConsoleMessage(text: "No project matches “\(query)”.")
                             }
                             ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
                                 if index > 0 { RowDivider() }
@@ -79,7 +79,7 @@ struct ProjectsView: View {
                                 .id(project.id)
                             }
                         }
-                        KeyboardHints(hints: [("j/k", "move"), ("↵", "details"), ("/", "filter"), ("t e g", "terminal · editor · github"), ("esc", "close")])
+                        KeyboardHints(hints: [("j/k", "Move"), ("↵", "Details"), ("/", "Filter"), ("t e g", "Terminal · Editor · GitHub"), ("esc", "Close")])
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, DS.Space.m)
                     }
@@ -104,7 +104,7 @@ struct ProjectsView: View {
                 }
             } else {
                 Panel {
-                    ConsoleMessage(text: "no projects yet — they appear after the first briefing", actionTitle: "regenerate", keys: "⌘R", action: model.regenerate)
+                    ConsoleMessage(text: "No projects yet. They appear after the first briefing.", actionTitle: "Regenerate", keys: "⌘R", action: model.regenerate)
                 }
                 Spacer()
             }
@@ -118,11 +118,11 @@ struct ProjectsView: View {
     private var header: some View {
         VStack(spacing: 0) {
             HStack(spacing: DS.Space.m) {
-                column("  slug", width: DS.Size.projectColumn + DS.Space.xl)
-                column("branch", width: nil)
-                if !showsDetail { column("last touched", width: DS.Size.projectColumn) }
-                column("14d", width: sparklineWidth(compact: showsDetail))
-                column("state", width: DS.Size.statusColumn - DS.Space.xl, alignment: .trailing)
+                column("  Project", width: DS.Size.projectColumn + DS.Space.xl)
+                column("Branch", width: nil)
+                if !showsDetail { column("Last touched", width: DS.Size.projectColumn) }
+                column("14 days", width: sparklineWidth(compact: showsDetail))
+                column("State", width: DS.Size.statusColumn - DS.Space.xl, alignment: .trailing)
             }
             .padding(.horizontal, DS.Space.rowHorizontal)
             .padding(.vertical, DS.Space.s)
@@ -172,13 +172,13 @@ struct ProjectTableRow: View {
             HStack(spacing: DS.Space.m) {
                 HStack(spacing: DS.Space.xs) {
                     Text(isSelected ? "›" : " ").foregroundStyle(accent)
-                    Text(project.name.lowercased()).foregroundStyle(DS.Color.heading)
+                    Text(project.name).foregroundStyle(DS.Color.heading)
                 }
                 .font(DS.Font.meta)
                 .lineLimit(1)
                 .frame(width: DS.Size.projectColumn + DS.Space.xl, alignment: .leading)
                 HStack(spacing: DS.Space.xs) {
-                    Text(project.branch ?? (project.kind == .folder ? "—" : "detached"))
+                    Text(project.branch ?? (project.kind == .folder ? "—" : "Detached"))
                         .foregroundStyle(DS.Color.muted)
                     if project.isDirty { Text("*").foregroundStyle(DS.Color.accentInk(accent)).help("Uncommitted changes") }
                     if project.ahead > 0 { Text("↑\(project.ahead)").foregroundStyle(DS.Color.accentInk(accent)).help("Unpushed commits") }
@@ -232,7 +232,7 @@ struct ProjectDetail: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.xl) {
                 VStack(alignment: .leading, spacing: DS.Space.xs) {
-                    Text(project.name.lowercased())
+                    Text(project.name)
                         .font(DS.Font.sans(22, .semibold))
                         .foregroundStyle(DS.Color.heading)
                     Text(PathDisplay.abbreviate(project.path))
@@ -244,23 +244,23 @@ struct ProjectDetail: View {
                 }
 
                 HStack(spacing: DS.Space.s) {
-                    Button { Opener.terminal(project.path) } label: { ShortcutLabel(title: "terminal", keys: "T") }
-                    Button { Opener.editor(project.path) } label: { ShortcutLabel(title: "editor", keys: "E") }
+                    Button { Opener.terminal(project.path) } label: { ShortcutLabel(title: "Terminal", keys: "T") }
+                    Button { Opener.editor(project.path) } label: { ShortcutLabel(title: "Editor", keys: "E") }
                     if let url = project.webURL {
-                        Button { Opener.url(url) } label: { ShortcutLabel(title: "github", keys: "G") }
+                        Button { Opener.url(url) } label: { ShortcutLabel(title: "GitHub", keys: "G") }
                     }
                 }
                 .buttonStyle(.consoleOutline)
 
-                section("stats") {
+                section("Activity") {
                     Grid(alignment: .leading, horizontalSpacing: DS.Space.xl, verticalSpacing: DS.Space.s) {
                         GridRow {
-                            stat("commits 14d", "\(project.commitsLast14Days.reduce(0, +))")
-                            stat("last touched", project.lastActivityAt.map { Format.relative($0) } ?? "—")
+                            stat("Commits, 14 days", "\(project.commitsLast14Days.reduce(0, +))")
+                            stat("Last touched", project.lastActivityAt.map { Format.relative($0) } ?? "—")
                         }
                         GridRow {
-                            stat("uncommitted", "\(project.changedFiles + project.untrackedFiles)")
-                            stat("unpushed", "\(project.ahead)")
+                            stat("Uncommitted files", "\(project.changedFiles + project.untrackedFiles)")
+                            stat("Unpushed commits", "\(project.ahead)")
                         }
                     }
                     if project.kind == .repo, !project.commitsLast14Days.isEmpty {
@@ -268,13 +268,13 @@ struct ProjectDetail: View {
                     }
                 }
 
-                section("deadline") {
+                section("Deadline") {
                     DeadlineEditor(projectID: project.id)
                 }
 
                 let attention = facts.attention.filter { $0.projectID == project.id }
                 if !attention.isEmpty {
-                    section("attention") {
+                    section("Needs your decision") {
                         ForEach(attention) { item in
                             VStack(alignment: .leading, spacing: DS.Space.xxs) {
                                 Text(item.title).font(DS.Font.small).foregroundStyle(DS.Color.text)
@@ -285,12 +285,12 @@ struct ProjectDetail: View {
                 }
 
                 if !project.branches.isEmpty {
-                    section("branches") {
+                    section("Branches") {
                         ForEach(project.branches, id: \.name) { branch in
                             HStack(spacing: DS.Space.s) {
                                 Text(branch.isCurrent ? "*" : " ").foregroundStyle(DS.Color.ok)
                                 Text(branch.name).foregroundStyle(DS.Color.text).lineLimit(1)
-                                if branch.isStale { Text("stale").foregroundStyle(DS.Color.dim) }
+                                if branch.isStale { Text("Stale").foregroundStyle(DS.Color.dim) }
                                 if branch.ahead > 0 { Text("↑\(branch.ahead)").foregroundStyle(DS.Color.muted) }
                                 if branch.behind > 0 { Text("↓\(branch.behind)").foregroundStyle(DS.Color.muted) }
                                 Spacer()
@@ -303,13 +303,13 @@ struct ProjectDetail: View {
 
                 let refs = facts.sessions(for: project.id).map(\.id) + facts.commits(for: project.id).map(\.id)
                 if !refs.isEmpty {
-                    section("since last briefing") {
+                    section("Since the last briefing") {
                         ForEach(facts.evidence(refs).prefix(12)) { EvidenceRow(evidence: $0) }
                     }
                 }
 
                 ForEach(facts.notes.filter { $0.projectID == project.id }) { note in
-                    section(note.file.lowercased()) {
+                    section(note.file) {
                         if note.openItems.isEmpty, let excerpt = note.excerpt {
                             Text(excerpt).font(DS.Font.small).foregroundStyle(DS.Color.muted)
                         }
@@ -357,13 +357,13 @@ struct DeadlineEditor: View {
                 .labelsHidden()
                 .datePickerStyle(.field)
                 if let days = model.daysUntilDeadline(projectID) {
-                    Text(days >= 0 ? "T-\(days)d" : "passed").font(DS.Font.tag).foregroundStyle(DS.Color.muted)
+                    Text(days >= 0 ? "T-\(days)d" : "Passed").font(DS.Font.tag).foregroundStyle(DS.Color.muted)
                 }
                 Spacer()
-                Button("clear") { model.updateSettings { $0.projectDeadlines[projectID] = nil } }
+                Button("Clear") { model.updateSettings { $0.projectDeadlines[projectID] = nil } }
                     .buttonStyle(.consoleGhost)
             } else {
-                Button("+ set deadline") {
+                Button("Set a deadline") {
                     model.updateSettings { $0.projectDeadlines[projectID] = Calendar.current.date(byAdding: .day, value: 14, to: .now) }
                 }
                 .buttonStyle(.consoleOutline)

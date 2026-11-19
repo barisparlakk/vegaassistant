@@ -11,13 +11,13 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
-                Panel("general") { GeneralSettings() }
-                Panel("voice") { VoiceSettings() }
-                Panel("sources") { SourcesSettings() }
-                Panel("claude") { ClaudeSettings() }
-                Panel("news") { NewsSettingsSection() }
-                Panel("automation") { AutomationSettings() }
-                Panel("data") { DataSettings() }
+                Panel("General") { GeneralSettings() }
+                Panel("Voice and assistant") { VoiceSettings() }
+                Panel("Sources") { SourcesSettings() }
+                Panel("Claude") { ClaudeSettings() }
+                Panel("News") { NewsSettingsSection() }
+                Panel("Automation") { AutomationSettings() }
+                Panel("Data") { DataSettings() }
             }
             .padding(.horizontal, DS.Space.pageSide)
             .padding(.vertical, DS.Space.pageTop)
@@ -48,17 +48,17 @@ private struct GeneralSettings: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingRow("daily briefing at", detail: "The scheduler runs then; launchd catches up after sleep.") {
+            SettingRow("Daily briefing at", detail: "The scheduler runs then; launchd catches up after sleep.") {
                 DatePicker("Daily briefing at", selection: briefingTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .datePickerStyle(.field)
             }
             RowDivider()
-            SettingRow("open at login", detail: "Keeps the menu bar item around.") {
+            SettingRow("Open at login", detail: "Keeps the menu bar item around.") {
                 LoginItemToggle()
             }
             RowDivider()
-            SettingRow("accent") {
+            SettingRow("Accent color") {
                 HStack(spacing: DS.Space.s) {
                     ForEach(Self.presets, id: \.hex) { preset in
                         let color = Color(hex: preset.hex)
@@ -117,7 +117,7 @@ struct LoginItemToggle: View {
     var body: some View {
         HStack(spacing: DS.Space.s) {
             if status == .requiresApproval {
-                Button("approve in login items") { SMAppService.openSystemSettingsLoginItems() }
+                Button("Approve in Login Items") { SMAppService.openSystemSettingsLoginItems() }
                     .buttonStyle(.consoleGhost)
             }
             if let error {
@@ -152,7 +152,7 @@ private struct SourcesSettings: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingRow("repository folders", detail: "Searched for git repositories.") {
+            SettingRow("Repository folders", detail: "Searched for git repositories.") {
                 Button("+ add folder", action: addFolder).buttonStyle(.consoleOutline)
             }
             ForEach(model.settings.repoRoots, id: \.self) { root in
@@ -167,7 +167,7 @@ private struct SourcesSettings: View {
                 .padding(.vertical, DS.Space.xs)
             }
             RowDivider()
-            SettingRow("search depth") {
+            SettingRow("Search depth") {
                 Stepper(value: Binding(
                     get: { model.settings.scanDepth },
                     set: { value in model.updateSettings { $0.scanDepth = value } }
@@ -176,7 +176,7 @@ private struct SourcesSettings: View {
                 }
             }
             RowDivider()
-            SettingRow("include claude code folders", detail: "Also look where you ran Claude Code sessions.") {
+            SettingRow("Include Claude Code folders", detail: "Also look where you ran Claude Code sessions.") {
                 switchToggle("Include Claude Code folders", isOn: Binding(
                     get: { model.settings.discoverFromClaudeSessions },
                     set: { value in model.updateSettings { $0.discoverFromClaudeSessions = value } }
@@ -184,7 +184,7 @@ private struct SourcesSettings: View {
             }
             RowDivider()
             ForEach(CollectorKind.collected) { kind in
-                SettingRow(kind.displayName.lowercased()) {
+                SettingRow(kind.displayName) {
                     switchToggle(kind.displayName, isOn: Binding(
                         get: { model.settings.isEnabled(kind) },
                         set: { on in model.updateSettings { if on { $0.enabledCollectors.insert(kind) } else { $0.enabledCollectors.remove(kind) } } }
@@ -192,27 +192,27 @@ private struct SourcesSettings: View {
                 }
                 RowDivider()
             }
-            SettingRow("calendar access") { AccessControl(access: model.system.calendarAccess, request: model.requestCalendarAccess, pane: "Privacy_Calendars") }
+            SettingRow("Calendar access") { AccessControl(access: model.system.calendarAccess, request: model.requestCalendarAccess, pane: "Privacy_Calendars") }
             if model.system.calendarAccess.isGranted {
                 ForEach(model.system.calendars) { source in
                     HStack(spacing: DS.Space.s) {
                         Circle().fill(Color(hex: source.colorHex) ?? DS.Color.dim).frame(width: DS.Size.dot, height: DS.Size.dot)
-                        Text(source.title.lowercased()).font(DS.Font.meta).foregroundStyle(DS.Color.text)
-                        Text(source.account.lowercased()).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
+                        Text(source.title).font(DS.Font.meta).foregroundStyle(DS.Color.text)
+                        Text(source.account).font(DS.Font.metaSmall).foregroundStyle(DS.Color.dim)
                         Spacer()
                         switchToggle(source.title, isOn: calendarBinding(source.id))
                     }
                     .padding(.horizontal, DS.Space.rowHorizontal + DS.Space.l)
                     .padding(.vertical, DS.Space.xs)
                 }
-                Text("all off = every calendar")
+                Text("All off means every calendar.")
                     .font(DS.Font.metaSmall)
                     .foregroundStyle(DS.Color.dim)
                     .padding(.horizontal, DS.Space.rowHorizontal + DS.Space.l)
                     .padding(.bottom, DS.Space.s)
             }
             RowDivider()
-            SettingRow("reminders access") { AccessControl(access: model.system.remindersAccess, request: model.requestRemindersAccess, pane: "Privacy_Reminders") }
+            SettingRow("Reminders access") { AccessControl(access: model.system.remindersAccess, request: model.requestRemindersAccess, pane: "Privacy_Reminders") }
         }
     }
 
@@ -249,11 +249,11 @@ private struct AccessControl: View {
     var body: some View {
         switch access {
         case .granted:
-            StatusTag(kind: .custom("GRANTED", DS.Color.ok))
+            StatusTag(kind: .custom("Allowed", DS.Color.ok))
         case .notDetermined:
-            Button("allow access", action: request).buttonStyle(.consoleOutline)
+            Button("Allow access", action: request).buttonStyle(.consoleOutline)
         case .denied, .restricted, .writeOnly:
-            Button("open system settings") {
+            Button("Open System Settings") {
                 Opener.url("x-apple.systempreferences:com.apple.preference.security?\(pane)")
             }
             .buttonStyle(.consoleOutline)
@@ -278,28 +278,34 @@ private struct VoiceSettings: View {
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 0) {
-            SettingRow("speak the briefing", detail: "Vega reads today's briefing aloud the first time you open it.") {
+            SettingRow("Speak the briefing", detail: "Vega reads today's briefing aloud the first time you open it.") {
                 switchToggle("Speak the briefing", isOn: $model.speaksOnOpen)
             }
             RowDivider()
-            SettingRow("voice", detail: "On-device voices. For a more natural one, add a premium voice such as Ava or Zoe in System Settings › Accessibility › Spoken Content › System Voice › Manage Voices.") {
-                HStack(spacing: DS.Space.s) {
-                    Picker("Voice", selection: $voiceID) {
-                        Text("Vega (best female voice)").tag("")
-                        ForEach(VegaVoice.availableVoices, id: \.identifier) { voice in
-                            Text(label(for: voice)).tag(voice.identifier)
+            SettingRow("Voice", detail: voiceDetail) {
+                VStack(alignment: .trailing, spacing: DS.Space.s) {
+                    HStack(spacing: DS.Space.s) {
+                        Picker("Voice", selection: $voiceID) {
+                            Text("Vega’s choice (best female voice)").tag("")
+                            ForEach(VegaVoice.availableVoices, id: \.identifier) { voice in
+                                Text(label(for: voice)).tag(voice.identifier)
+                            }
                         }
+                        .labelsHidden()
+                        .frame(maxWidth: DS.Size.pathFieldWidth)
+                        .id(model.voice.voicesVersion)
+                        Button("Preview") {
+                            model.voice.speak([VegaLine(id: "preview", text: "Hi, I'm Vega. I'll keep an eye on your day and tell you what matters.")])
+                        }
+                        .buttonStyle(.consoleOutline)
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: DS.Size.pathFieldWidth)
-                    Button("Preview") {
-                        model.voice.speak([VegaLine(id: "preview", text: "Hi, I'm Vega. I'll keep track of your day.")])
-                    }
-                    .buttonStyle(.consoleOutline)
+                    Button("Get a better voice…") { Opener.url(VegaVoice.spokenContentSettings.absoluteString) }
+                        .buttonStyle(.consoleGhost)
+                        .help("Opens Spoken Content. Choose System Voice › Manage Voices… and download Ava or Zoe (Premium).")
                 }
             }
             RowDivider()
-            SettingRow("floating assistant", detail: model.hotKeyError ?? "Summon Vega over any app. Esc or a click elsewhere hides her.") {
+            SettingRow("Floating assistant", detail: model.hotKeyError ?? "Summon Vega over any app. Esc or a click elsewhere hides her.") {
                 HStack(spacing: DS.Space.s) {
                     Picker("Shortcut", selection: Binding(get: { model.hotKeyID }, set: { model.applyHotKey($0) })) {
                         ForEach(GlobalHotKey.options) { combo in
@@ -314,7 +320,7 @@ private struct VoiceSettings: View {
                 }
             }
             RowDivider()
-            SettingRow("sounds", detail: "Soft chimes when the briefing is ready, a focus block starts or ends, and a task is done.") {
+            SettingRow("Sounds", detail: "Soft chimes when the briefing is ready, a focus block starts or ends, and a task is done.") {
                 HStack(spacing: DS.Space.s) {
                     switchToggle("Sounds", isOn: $soundsEnabled)
                     Button("Play") { model.sounds.play(.ready) }
@@ -322,6 +328,24 @@ private struct VoiceSettings: View {
                         .disabled(!soundsEnabled)
                 }
             }
+        }
+    }
+
+    /// Which voice she's using now, and how to get a better one.
+    private var voiceDetail: String {
+        _ = model.voice.voicesVersion
+        let current = VegaVoice.selectedVoice.map { "Speaking as \($0.name) (\(quality($0)))." } ?? ""
+        let tip = VegaVoice.hasOnlyBasicVoices
+            ? " Only basic voices are installed. For a natural one: Get a better voice… › System Voice › Manage Voices… › English › Ava or Zoe (Premium). Vega switches to it automatically."
+            : ""
+        return current + tip
+    }
+
+    private func quality(_ voice: AVSpeechSynthesisVoice) -> String {
+        switch voice.quality {
+        case .premium: "premium"
+        case .enhanced: "enhanced"
+        default: "basic"
         }
     }
 
@@ -344,7 +368,7 @@ private struct ClaudeSettings: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingRow("model", detail: "Passed to claude -p --model.") {
+            SettingRow("Model", detail: "Used for briefings, news and answers (claude -p --model).") {
                 HStack(spacing: DS.Space.xs) {
                     ForEach(Self.models, id: \.self) { name in
                         let isSelected = model.settings.claudeModel == name
@@ -354,18 +378,18 @@ private struct ClaudeSettings: View {
                 }
             }
             RowDivider()
-            SettingRow("claude code", detail: model.system.claudeSignedIn == false ? "Not signed in — run `claude auth login` in Terminal." : nil) {
+            SettingRow("Claude Code", detail: model.system.claudeSignedIn == false ? "Not signed in — run `claude auth login` in Terminal." : nil) {
                 HStack(spacing: DS.Space.s) {
-                    Text(model.system.claudePath ?? "not found")
+                    Text(model.system.claudePath ?? "Not found")
                         .font(DS.Font.meta)
                         .foregroundStyle(model.system.claudePath == nil ? DS.Color.failed : DS.Color.text)
                     if model.system.claudePath != nil {
-                        StatusTag(kind: model.system.claudeSignedIn == false ? .failed : .custom("SIGNED IN", DS.Color.ok))
+                        StatusTag(kind: model.system.claudeSignedIn == false ? .failed : .custom("Signed in", DS.Color.ok))
                     }
                 }
             }
             RowDivider()
-            SettingRow("custom path", detail: "Leave empty to detect ~/.local/bin, Homebrew, npm and your shell.") {
+            SettingRow("Custom path", detail: "Leave empty to detect ~/.local/bin, Homebrew, npm and your shell.") {
                 TextField("detected automatically", text: Binding(
                     get: { model.settings.claudePath ?? "" },
                     set: { value in model.updateSettings { $0.claudePath = value.isEmpty ? nil : value } }
@@ -378,7 +402,7 @@ private struct ClaudeSettings: View {
             }
             RowDivider()
             VStack(alignment: .leading, spacing: DS.Space.s) {
-                Text("extra instructions").font(DS.Font.meta).foregroundStyle(DS.Color.text)
+                Text("Extra instructions").font(DS.Font.meta).foregroundStyle(DS.Color.text)
                 Text("Added to every briefing prompt — tone, language, priorities.")
                     .font(DS.Font.small)
                     .foregroundStyle(DS.Color.dim)
@@ -399,7 +423,7 @@ private struct ClaudeSettings: View {
             }
             .padding(.horizontal, DS.Space.rowHorizontal)
             .padding(.vertical, DS.Space.m)
-            Text("briefings run claude -p on your subscription; morning never uses an api key")
+            Text("Briefings and answers run claude -p on your Claude subscription. Vega never uses an API key.")
                 .font(DS.Font.metaSmall)
                 .foregroundStyle(DS.Color.dim)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -424,15 +448,15 @@ private struct AutomationSettings: View {
                 InstallControl(isInstalled: model.system.launchAgentInstalled, toggle: model.setLaunchAgentInstalled)
             }
             RowDivider()
-            SettingRow("claude code stop hook", detail: "Logs when sessions finish. Merged into ~/.claude/settings.json with a backup.") {
+            SettingRow("Claude Code Stop hook", detail: "Logs when sessions finish. Merged into ~/.claude/settings.json with a backup.") {
                 InstallControl(isInstalled: model.system.hookInstalled, toggle: model.setHookInstalled)
             }
             RowDivider()
-            SettingRow("notifications", detail: "\"Vega: your briefing is ready\" — click to open today.") {
+            SettingRow("Notifications", detail: "\"Vega: your briefing is ready\" — click to open today.") {
                 switch model.system.notificationsAllowed {
-                case true?: StatusTag(kind: .custom("ON", DS.Color.ok))
-                case false?: Button("turn on in system settings", action: model.requestNotifications).buttonStyle(.consoleOutline)
-                case nil: Button("allow", action: model.requestNotifications).buttonStyle(.consoleOutline)
+                case true?: StatusTag(kind: .custom("On", DS.Color.ok))
+                case false?: Button("Turn on in System Settings", action: model.requestNotifications).buttonStyle(.consoleOutline)
+                case nil: Button("Allow", action: model.requestNotifications).buttonStyle(.consoleOutline)
                 }
             }
             RowDivider()
@@ -472,10 +496,10 @@ private struct InstallControl: View {
     var body: some View {
         HStack(spacing: DS.Space.s) {
             if isInstalled {
-                StatusTag(kind: .custom("INSTALLED", DS.Color.ok))
-                Button("uninstall") { toggle(false) }.buttonStyle(.consoleGhost)
+                StatusTag(kind: .custom("Installed", DS.Color.ok))
+                Button("Uninstall") { toggle(false) }.buttonStyle(.consoleGhost)
             } else {
-                Button("install") { toggle(true) }.buttonStyle(.consolePrimary)
+                Button("Install") { toggle(true) }.buttonStyle(.consolePrimary)
             }
         }
     }
@@ -488,13 +512,13 @@ private struct DataSettings: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SettingRow("briefings saved", detail: "Everything stays in ~/Library/Application Support/Morning. No telemetry.") {
+            SettingRow("Briefings saved", detail: "Everything stays in ~/Library/Application Support/Morning. No telemetry.") {
                 Text("\(model.system.briefingCount)").font(DS.Font.meta).foregroundStyle(DS.Color.text)
             }
             RowDivider()
             HStack(spacing: DS.Space.s) {
-                Button("open data folder", action: model.openDataFolder).buttonStyle(.consoleOutline)
-                Button("open logs") { Opener.finder(MorningPaths().logs.path) }.buttonStyle(.consoleOutline)
+                Button("Open data folder", action: model.openDataFolder).buttonStyle(.consoleOutline)
+                Button("Open logs") { Opener.finder(MorningPaths().logs.path) }.buttonStyle(.consoleOutline)
                 Spacer()
             }
             .padding(.horizontal, DS.Space.rowHorizontal)

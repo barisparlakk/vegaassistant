@@ -46,7 +46,7 @@ struct NewsRow: View {
                         .foregroundStyle(DS.Color.dim)
                         .lineLimit(1)
                     if isSaved {
-                        Text("SAVED").font(DS.Font.tag).foregroundStyle(DS.Color.accentInk(accent))
+                        Text("Saved").font(DS.Font.tag).foregroundStyle(DS.Color.accentInk(accent))
                     }
                 }
                 }
@@ -84,7 +84,7 @@ enum NewsAge {
 
 #Preview("News rows") {
     let items = MockData.news().allItems
-    Panel("news.feed") {
+    Panel("News") {
         ForEach(Array(items.prefix(4).enumerated()), id: \.element.id) { index, item in
             if index > 0 { RowDivider() }
             NewsRow(index: index + 1, item: item, isRead: index == 2, isSaved: index == 0, isSelected: index == 1) {}
