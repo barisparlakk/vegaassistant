@@ -210,11 +210,12 @@ private struct ExchangeView<Caption: View>: View {
             if let answer = exchange.answer {
                 caption(VegaLine(id: exchange.lineID, text: answer.answer))
                 if !answer.actions.isEmpty {
-                    HStack(spacing: DS.Space.s) {
-                        ForEach(answer.actions, id: \.self) { action in
-                            Button(action.label) { model.perform(action) }
-                                .buttonStyle(.vegaPill)
-                                .help(help(for: action))
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: DS.Space.s) {
+                            ForEach(answer.actions, id: \.self) { VegaActionButton(action: $0, exchangeID: exchange.id) }
+                        }
+                        VStack(alignment: .leading, spacing: DS.Space.s) {
+                            ForEach(answer.actions, id: \.self) { VegaActionButton(action: $0, exchangeID: exchange.id) }
                         }
                     }
                 }
@@ -234,17 +235,6 @@ private struct ExchangeView<Caption: View>: View {
                         .buttonStyle(.vegaPill)
                 }
             }
-        }
-    }
-
-    private func help(for action: VegaAction) -> String {
-        switch action.kind {
-        case .openTerminal: "Open the project in Terminal"
-        case .openEditor: "Open the project in your editor"
-        case .openURL: action.target ?? "Open the link"
-        case .startFocus: "Start a focus block on this task"
-        case .show: "Go to \(action.target ?? "")"
-        case .regenerate: "Rebuild today's briefing"
         }
     }
 }
