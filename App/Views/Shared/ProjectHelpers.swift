@@ -76,14 +76,14 @@ struct EvidenceRow: View {
 
     private var kind: String {
         switch evidence {
-        case .session: "SESSION"
-        case .commit: "COMMIT"
+        case .session: "Session"
+        case .commit: "Commit"
         case .pullRequest: "PR"
-        case .issue: "ISSUE"
-        case .attention: "FLAG"
-        case .note: "NOTE"
-        case .event: "EVENT"
-        case .reminder: "REMIND"
+        case .issue: "Issue"
+        case .attention: "Flag"
+        case .note: "Note"
+        case .event: "Event"
+        case .reminder: "Reminder"
         }
     }
 }

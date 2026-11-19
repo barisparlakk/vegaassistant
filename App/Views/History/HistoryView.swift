@@ -1,7 +1,7 @@
 import MorningKit
 import SwiftUI
 
-/// Date list on the left, the Today layout (read-only) on the right.
+/// Date list on the left; on the right, what Vega said that day (read-only).
 struct HistoryView: View {
     @Environment(AppModel.self) private var model
     @FocusState private var listFocused: Bool
@@ -9,7 +9,7 @@ struct HistoryView: View {
     var body: some View {
         if model.history.isEmpty {
             VStack(alignment: .leading) {
-                Panel { ConsoleMessage(text: "no history yet — each morning's briefing is kept here") }
+                Panel { ConsoleMessage(text: "No history yet. Each day’s briefing is kept here.") }
                 Spacer()
             }
             .padding(.horizontal, DS.Space.pageSide)
@@ -55,11 +55,11 @@ struct HistoryView: View {
 
     @ViewBuilder private var detail: some View {
         if let briefing = model.historyBriefing {
-            BriefingConsole(briefing: briefing, isToday: false)
+            HistoryConversation(briefing: briefing)
                 .id(briefing.id)
                 .transition(.opacity)
         } else {
-            TodaySkeleton()
+            Color.clear
         }
     }
 
@@ -88,15 +88,15 @@ struct HistoryRow: View {
                     Text(Format.consoleDate(summary.date ?? summary.generatedAt))
                         .foregroundStyle(isSelected ? DS.Color.heading : DS.Color.text)
                     if let name = summary.focusProjectName {
-                        Text("· \(name.lowercased())").foregroundStyle(DS.Color.dim).lineLimit(1)
+                        Text("· \(name)").foregroundStyle(DS.Color.dim).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                     if summary.trigger == .manual {
-                        Text("manual").foregroundStyle(DS.Color.dim)
+                        Text("Manual").foregroundStyle(DS.Color.dim)
                     }
                 }
                 .font(DS.Font.metaSmall)
-                Text(summary.isFallback ? "shown as text" : (summary.headline ?? ""))
+                Text(summary.isFallback ? "Shown as text" : (summary.headline ?? ""))
                     .font(DS.Font.small)
                     .foregroundStyle(summary.isFallback ? DS.Color.dim : DS.Color.muted)
                     .lineLimit(2)
@@ -128,4 +128,28 @@ struct HistoryRow: View {
         .frame(width: 900, height: 300)
         .background(ConsoleBackdrop())
         .preferredColorScheme(.dark)
+}
+
+/// A past day as Vega told it: the same lines and cards as Today, read-only and silent.
+struct HistoryConversation: View {
+    @Environment(AppModel.self) private var model
+    let briefing: Briefing
+    @State private var cursor: ConsoleCursor?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.xl + DS.Space.xs) {
+                ForEach(VegaScript.lines(for: briefing, news: model.newsPreview(for: briefing.id), isToday: false)) { line in
+                    VegaLineView(line: line, briefing: briefing, isReadOnly: true, followsVoice: false, cursor: $cursor)
+                }
+                SourcesLine(briefing: briefing)
+            }
+            .padding(.horizontal, DS.Space.xxl + DS.Space.l)
+            .padding(.vertical, DS.Space.xxl)
+            .frame(maxWidth: DS.Size.conversationWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollContentBackground(.hidden)
+        .task(id: briefing.id) { await model.loadNews(for: briefing.id) }
+    }
 }

@@ -3,67 +3,7 @@ import SwiftUI
 
 // MARK: - Hero
 
-/// Orb, greeting, the day's headline and three numbers, on a softly lit stage.
-struct TodayHero<Stats: View>: View {
-    let overline: String
-    let title: String
-    var isWorking = false
-    @ViewBuilder var stats: Stats
-    @Environment(\.accent) private var accent
 
-    var body: some View {
-        HStack(alignment: .center, spacing: DS.Space.xxl) {
-            VStack(alignment: .leading, spacing: DS.Space.s + DS.Space.xxs) {
-                Text(overline)
-                    .font(DS.Font.greeting)
-                    .foregroundStyle(DS.Color.accentInk(accent))
-                Text(title)
-                    .font(DS.Font.heroTitle)
-                    .tracking(DS.Tracking.hero)
-                    .foregroundStyle(LinearGradient(colors: [DS.Color.heading, DS.Color.muted], startPoint: .top, endPoint: .bottom))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-                HStack(alignment: .firstTextBaseline, spacing: DS.Space.xxl) {
-                    stats
-                }
-                .padding(.top, DS.Space.s)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, DS.Space.xxl + DS.Space.l)
-        .padding(.top, DS.Space.xxl + DS.Space.s)
-        .padding(.bottom, DS.Space.xxl)
-        .frame(maxWidth: DS.Size.contentMaxWidth + DS.Space.xxl, alignment: .leading)
-        .frame(maxWidth: .infinity)
-        .background {
-            ZStack {
-                DS.Color.stageBottom
-                RadialGradient(colors: [DS.Color.stageTop, DS.Color.stageTop.opacity(0)], center: UnitPoint(x: 0.15, y: 0), startRadius: 0, endRadius: 900)
-            }
-        }
-        .overlay(alignment: .bottom) { RowDivider() }
-    }
-}
-
-/// `1h 20m focus`
-struct HeroStat: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: DS.Space.s) {
-            Text(value)
-                .font(DS.Font.heroStat)
-                .tracking(-0.6)
-                .foregroundStyle(DS.Color.heading)
-                .contentTransition(.numericText())
-            Text(label)
-                .font(DS.Font.small)
-                .foregroundStyle(DS.Color.muted)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
 
 // MARK: - Card
 
@@ -400,30 +340,3 @@ struct AgendaCard: View {
 
 // MARK: - Later
 
-/// Worthwhile work outside today's focus.
-struct LaterCard: View {
-    let tasks: [GeneratedBriefing.NextTask]
-    let facts: BriefingFacts
-
-    var body: some View {
-        HomeCard("Also worth doing") {
-            ForEach(Array(tasks.prefix(3).enumerated()), id: \.offset) { _, task in
-                HStack(spacing: DS.Space.m) {
-                    VStack(alignment: .leading, spacing: DS.Space.xxs) {
-                        Text(task.title).font(DS.Font.body).foregroundStyle(DS.Color.text).lineLimit(1)
-                        Text(facts.project(task.projectID)?.name ?? task.projectID)
-                            .font(DS.Font.small)
-                            .foregroundStyle(DS.Color.dim)
-                    }
-                    Spacer(minLength: DS.Space.s)
-                    Text(Format.estimate(task.estimateMinutes))
-                        .font(DS.Font.time)
-                        .foregroundStyle(DS.Color.dim)
-                }
-                .padding(.horizontal, DS.Space.l + DS.Space.xs)
-                .padding(.vertical, DS.Space.s)
-                .help(task.reason)
-            }
-        }
-    }
-}

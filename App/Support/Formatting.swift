@@ -41,13 +41,9 @@ enum Format {
         minutes < 60 ? "\(minutes)m" : (minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h\(String(format: "%02d", minutes % 60))m")
     }
 
-    /// `MON 09 NOV`
+    /// `Thu 19 Nov`
     static func consoleDate(_ date: Date) -> String {
-        let style = Date.FormatStyle(locale: Locale(identifier: "en_US_POSIX")).weekday(.abbreviated).day(.twoDigits).month(.abbreviated)
-        let parts = date.formatted(style).replacingOccurrences(of: ",", with: "").split(separator: " ")
-        // en_US gives "Mon Nov 09": reorder to "MON 09 NOV".
-        guard parts.count == 3 else { return date.formatted(style).uppercased() }
-        return "\(parts[0]) \(parts[2]) \(parts[1])".uppercased()
+        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
     /// `48s`, `1m04s`.

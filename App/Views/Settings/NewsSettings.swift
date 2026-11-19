@@ -7,7 +7,7 @@ struct NewsSettingsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingRow("enabled", detail: "One extra web-search run alongside each briefing (about a minute).") {
+            SettingRow("Find news", detail: "One extra web-search run alongside each briefing (about a minute).") {
                 Toggle("News enabled", isOn: Binding(
                     get: { model.settings.newsEnabled },
                     set: { value in model.updateSettings { $0.newsEnabled = value } }
@@ -17,7 +17,7 @@ struct NewsSettingsSection: View {
                 .controlSize(.small)
             }
             RowDivider()
-            SettingRow("items per category") {
+            SettingRow("Stories per category") {
                 Stepper(value: Binding(
                     get: { model.settings.newsItemsPerCategory },
                     set: { value in model.updateSettings { $0.newsItemsPerCategory = value } }
@@ -40,7 +40,7 @@ struct NewsSettingsSection: View {
                     }
                 }
                 .buttonStyle(.consoleOutline)
-                Button("reset to defaults") {
+                Button("Reset to defaults") {
                     model.updateSettings { $0.newsTopics = NewsTopic.defaults }
                 }
                 .buttonStyle(.consoleGhost)
